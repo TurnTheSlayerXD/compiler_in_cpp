@@ -9,3 +9,8 @@ all: $(OUT)
 
 $(OUT): $(SRC)
 	go build -o $(OUT) ./src
+
+
+
+test: ./test/test_token.go
+	go run ./test/test_token.go ./src/tokenizer.go

@@ -1,20 +1,17 @@
-package main
+#include "tokenizer.c"
 
-import "slices"
-import "fmt"
 
-func main() {
+int main() {
 
-	var programText = "int val = 1;";
-	var target_tok_types = []EnumToken{ T_TYPE_INT, T_CUSTOM_WORD, T_ASSIGN, T_LIT_I, T_SEMICOLON }
-	var tok_types = []EnumToken{}
+	const char * program_text = "int val = 1;";
+	EnumToken target[] = { T_TYPE_INT, T_CUSTOM_WORD, T_ASSIGN, T_LIT_I, T_SEMICOLON };
+	
+    Token_array *actual = {0};
+    Tokenizer tokenizer = Tokenizer_new(program_text);
 
-	tokenizer := Tokenizer_new(programText)
-
-	i := 0
-	for {
-		i++
-		var ok, tok = tokenizer.next_tok()
+	
+	for (int i = 0; ; ++i) {
+		Token tok = next_tok(&tokenizer);
 		if !ok {
 			break
 		}
@@ -37,4 +34,6 @@ func main() {
 	assert(slices.Equal(target_tok_types, tok_types), fmt.Sprintf("Comparison Failed, program: `%s`", programText))
 
 	var _ = tokenizer
+
+    return 0;
 }
