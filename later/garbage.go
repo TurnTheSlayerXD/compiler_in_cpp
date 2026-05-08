@@ -1,3 +1,4 @@
+// +build ignore
 
 type Context struct {
 	defined_types []string

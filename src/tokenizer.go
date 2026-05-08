@@ -1,23 +1,10 @@
+
 package main
 
-import (
-	"fmt"
-)
+import "fmt"
 import . "unicode"
 import "strconv"
 import "strings"
-import "slices"
-
-func panic_fmt(format string, args ...any) {
-	panic(fmt.Sprintf(format, args))
-}
-
-func assert(t bool, msg string) {
-	if (!t) {
-		panic(msg)
-	}
-}
-
 
 type EnumToken int
 const (
@@ -83,13 +70,15 @@ type Tokenizer struct {
 	row int
 	col int
 
-	tok_index int
+	cur_tok_index int
 } 
 
 type TextTag struct {
 	pos int
 	row int
 	col int
+
+	tok_index int
 }
 
 func str_EnumToken(t EnumToken) string {
@@ -110,16 +99,17 @@ func str_EnumToken(t EnumToken) string {
 	case T_ASSIGN: 		return "=";
 	case T_CUSTOM_WORD: return "[word]";
 	case T_SEMICOLON: return ";";
-	case T_LIT_CHAR: return "char";
+	case T_LIT_CHAR: return "[char]";
+	case T_LIT_STRING: return "[string]";
 	case T_LIT_I: return "[num]";
-	case T_LIT_F: return "[f_num]";
+	case T_LIT_F: return "[num_float]";
 	default: panic(fmt.Sprintf("Unknown token: [%d]", t));
 	}
 }
 
 
 func Tokenizer_new(text string) *Tokenizer {
-	var ret = &Tokenizer{ text: text, tokens: [](Token){}, pos: 0, row: 0, col: 0, tok_index: 0 }
+	var ret = &Tokenizer{ text: text, tokens: [](Token){}, pos: 0, row: 0, col: 0, cur_tok_index: 0 }
 	ret.separators = []Separator { 
 		Separator{tok_type: T_OP_PLUS, is_space: false, },
 		Separator{tok_type: T_OP_MINUS, is_space: false, },
@@ -229,9 +219,9 @@ func (t *Tokenizer) char_cur() byte {
 
 func (t *Tokenizer) next_tok() (ok bool, tok Token) {
 	
-	if t.tok_index < len(t.tokens) {
-		t.tok_index += 1
-		return true, t.tokens[t.tok_index - 1]
+	if t.cur_tok_index < len(t.tokens) {
+		t.cur_tok_index += 1
+		return true, t.tokens[t.cur_tok_index - 1]
 	}
 
 
@@ -263,9 +253,9 @@ func (t *Tokenizer) next_tok() (ok bool, tok Token) {
 			t.incr_pos()
 
 			if quote == '"' {
-				return true, t.Token_new_with_value(T_LIT_STRING, tag_start, value)
+				return true, t.Token_new_with_value(T_LIT_STRING, value, &tag_start)
 			} else if quote == '\'' {
-				return true, t.Token_new_with_value(T_LIT_CHAR, tag_start, value)
+				return true, t.Token_new_with_value(T_LIT_CHAR, value, &tag_start)
 			} else {
 				panic("UNEXPECTED")
 			}
@@ -279,23 +269,23 @@ func (t *Tokenizer) next_tok() (ok bool, tok Token) {
 		// Мы не можем тут сразу сделать return, потому что нам нужно заппендеить токен сепаратор, иначе он потеряется
 		if len(word) > 0 {
 			is_ret = true
-			// Проверяем если целое число
+			var tp EnumToken
 			//TODO RADIX NOT 10 Only
 			if _, err := strconv.ParseInt(word, 10, 32); err == nil {
-				t.Token_new_with_value(T_LIT_I, tag_start, word)
+				tp = T_LIT_I
 			} else if _, err := strconv.ParseFloat(word, 32); err == nil {
-				t.Token_new_with_value(T_LIT_F, tag_start, word)
+				tp = T_LIT_F
 			} else {
-				t.Token_new_with_value(T_CUSTOM_WORD, tag_start, word)
+				tp = T_CUSTOM_WORD
 			}
+			t.Token_new_with_value(tp, word, &tag_start)
 		}
 		
 		if sep != nil && !sep.is_space {
-			t.Token_new(sep.tok_type, t.get_pos())
-	
+			t.Token_new(sep.tok_type, &tag_start)
 			if is_ret {
-				t.tok_index = len(t.tokens) - 1
-				// Смещаем на len-1, потому что мы токен-сепаратор возвращаем НЕ СРАЗУ
+				// Смещаем до len-1, потому что мы токен-сепаратор возвращаем НЕ СРАЗУ
+				t.cur_tok_index = len(t.tokens) - 1
 			} else {
 				is_ret = true
 			}
@@ -311,7 +301,7 @@ func (t *Tokenizer) next_tok() (ok bool, tok Token) {
 		}
 
 		if is_ret {
-			return true, t.tokens[t.tok_index - 1] 
+			return true, t.tokens[t.cur_tok_index - 1] 
 		}
 
 		return false, Token{}
@@ -319,50 +309,39 @@ func (t *Tokenizer) next_tok() (ok bool, tok Token) {
 }
 
 
-func (t *Tokenizer) Token_new(typeof EnumToken, tag TextTag) Token {
-	var tok = Token{ typeof : typeof, tag: tag }
+func (t *Tokenizer) Token_new(typeof EnumToken, tag *TextTag) Token {
+	if tag == nil {
+			b := t.get_pos()
+		tag = &b
+	}
+	tag.tok_index = len(t.tokens)
+
+	var tok = Token{ typeof : typeof, tag: *tag }
+
 	t.tokens = append(t.tokens, tok)
-	t.tok_index = len(t.tokens)
+	t.cur_tok_index = len(t.tokens)
 	return tok
 }
 
-func (t *Tokenizer) Token_new_with_value(typeof EnumToken, tag TextTag, value string) Token {
-	var tok = Token{ typeof : typeof, tag: tag, value: value}
+func (t *Tokenizer) Token_new_with_value(typeof EnumToken, value string, tag *TextTag) Token {
+	if tag == nil {
+		b := t.get_pos()
+		tag = &b
+	}
+	tag.tok_index = len(t.tokens)
+	
+	var tok = Token{ typeof : typeof, value: value, tag: *tag}
+
 	t.tokens = append(t.tokens, tok)
-	t.tok_index = len(t.tokens)
+	t.cur_tok_index = len(t.tokens)
 	return tok
 }
 
 
 func (t *Tokenizer) get_pos() TextTag {
-	return TextTag{ pos: t.pos, row: t.row, col: t.col }
+	return TextTag{ pos: t.pos, row: t.row, col: t.col, tok_index: t.cur_tok_index }
 }
 
-func (t *Tokenizer) reset_pos(text_pos TextTag) {
-}
-
-
-func main() {
-
-	var programText = "int val = 1;"+"";
-	var target_tok_types = []EnumToken{ T_TYPE_INT, T_CUSTOM_WORD, T_ASSIGN, T_LIT_I, T_SEMICOLON }
-	var tok_types = []EnumToken{}
-
-	tokenizer := Tokenizer_new(programText)
-
-	i := 0
-	for {
-		i++
-		var ok, tok = tokenizer.next_tok()
-		if !ok {
-			break
-		}
-		fmt.Printf("%d:  type:`%s`  value:`%s` \n", i, str_EnumToken(tok.typeof), tok.value)
-		tok_types = append(tok_types, tok.typeof)
-		_ = tok
-	}
-	
-	assert(slices.Equal(target_tok_types, tok_types), fmt.Sprintf("Comparison Failed, program: `%s`", programText))
-
-	var _ = tokenizer
+func (t *Tokenizer) reset_pos(tag *TextTag) {
+	t.cur_tok_index = tag.tok_index
 }
