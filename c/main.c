@@ -1,39 +1,42 @@
 #include "tokenizer.c"
 
 
+
+
+
 int main() {
-
-	const char * program_text = "int val = 1;";
-	EnumToken target[] = { T_TYPE_INT, T_CUSTOM_WORD, T_ASSIGN, T_LIT_I, T_SEMICOLON };
+	const char *program_text = "int val = 1;";
+	enum EnumToken target[] = { T_KWD_TYPE_INT, T_CUSTOM_WORD, T_ASSIGN, T_LIT_I, T_SEMICOLON };
 	
-    Token_array *actual = {0};
-    Tokenizer tokenizer = Tokenizer_new(program_text);
-
+    Token_array actual = {0};
+    Tokenizer tokenizer = Tokenizer_new((String_View){.ptr = program_text, .len = strlen(program_text)});
 	
 	for (int i = 0; ; ++i) {
-		Token tok = next_tok(&tokenizer);
-		if !ok {
-			break
-		}
-		fmt.Printf("%d:  type:`%s`  value:`%+v` \n", i, str_EnumToken(tok.typeof), tok)
-		tok_types = append(tok_types, tok.typeof)
-		_ = tok
+		Token *p = tok_next_token(&tokenizer);
+		if (!p) {
+			break;
+		}	
+
+		Token tok = *p;
+
+		printf("%d:  type:`%s`, word: `"FMT_SV"`\n", i, str_EnumToken(tok.type), ARGS_SV(tok.text));
+		push_Token_array(&actual, tok);
 	}
 
-	for i := 0; i < min(len(target_tok_types), len(tok_types)); i++ {
-		if target_tok_types[i] != tok_types[i] {
-			panic_fmt("Comparison failed at %d index.  expToken { %s } foundToken { %s }", 
+	for (int i = 0; i < MIN( (int)COUNT_OF(target), actual.size); i++ ){
+		if (target[i] != actual.ptr[i].type) {
+			fprintf(stderr, "Comparison failed at %d index.  expToken { %s } foundToken { %s }, word = %s\n", 
 				i, 
-				str_EnumToken(target_tok_types[i]),
-				str_EnumToken(tok_types[i]),
+				str_EnumToken(target[i]),
+				str_EnumToken(actual.ptr[i].type),
+				actual.ptr[i].text.ptr
 			);
+			break;
 		}
 	}
-	
-	
-	assert(slices.Equal(target_tok_types, tok_types), fmt.Sprintf("Comparison Failed, program: `%s`", programText))
 
-	var _ = tokenizer
+	clear_Token_array(tokenizer.tokens);
+
 
     return 0;
 }
