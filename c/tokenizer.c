@@ -14,15 +14,18 @@
 
 #define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-
-
+typedef struct Tag {
+	int pos;
+	int row;
+	int col;
+	int tok_index;
+} Tag;
 
 typedef struct Token {
     enum EnumToken type;
 	String_View text;
 	Tag tag;
 } Token;
-
 
 typedef struct Token_array {
     Token *ptr;
@@ -38,7 +41,7 @@ typedef struct Tokenizer {
 
 
 void push_Token_array(Token_array *p, Token t) {
-    if (p->cap >= p->size) {
+    if (p->cap <= p->size) {
         p->ptr = realloc(p->ptr, sizeof(Token) * (p->cap * 2 + 1));
         p->cap = p->cap * 2 + 1;
     }
@@ -54,8 +57,8 @@ void clear_Token_array(Token_array *p) {
     p->cap = 0;
 }
 
-
 Tokenizer Tokenizer_new(String_View text) {
+	init_tokens();
     return (Tokenizer){ 
         .text = text, 
         .tokens = {0}, 
@@ -81,15 +84,28 @@ void tok_iter_next(Tokenizer *this) {
 	this->cur.pos += 1;
 }
 
+static char heap_str[100] = {0};
+
+void prep_heap_str(String_View str) {
+	int len = MIN(str.len, COUNT_OF(heap_str));
+	if (str.len < (int)COUNT_OF(heap_str)) {
+		heap_str[str.len] = '\0';
+		memcpy(heap_str, str.ptr, len);
+	}
+	else {
+		heap_str[COUNT_OF(heap_str) - 1] = '\0';
+		memcpy(heap_str, str.ptr, COUNT_OF(heap_str) - 1);
+	}
+}
+
 int try_int_conversion(String_View str, bool *err) {
 	if (str.len < 0) {
 		assert(false && "try_float_conversion(String_View str, bool *err)");
 	}
-	char *heap_str = strdup_n(str.ptr, str.len);
+	prep_heap_str(str);
 	char *end_ptr;
 	int conv = strtol(heap_str, &end_ptr, 10);
 	*err = end_ptr == heap_str;
-	free(heap_str);
 	return conv;
 }
 
@@ -97,41 +113,34 @@ float try_float_conversion(String_View str, bool *err) {
 	if (str.len < 0) {
 		assert(false && "try_float_conversion(String_View str, bool *err)");
 	}
-	char *heap_str = strdup_n(str.ptr, str.len);
+	prep_heap_str(str);
 	char *end_ptr;
 	float conv = strtof(heap_str, &end_ptr);
 	*err = end_ptr == heap_str;
-	free(heap_str);
 	return conv;
 }
 
-void tok_skip_until_separator(Tokenizer *this, String_View *ret_word, Separator *ret_sep) {
+bool tok_skip_until_stop_token(Tokenizer *this, String_View *ret_word, enum EnumToken *stop_tok_type) {
 	size_t c = 0;
 
 	while (!tok_eof(this)) {
 		if (isspace(this->text.ptr[this->cur.pos])) {
 			*ret_word = substr_sv(this->text, this->cur.pos - c, this->cur.pos);
-			break;
+			return false;
 		}
 
-		int sep_index = -1;
-		for (int i = 0; i < (int)(COUNT_OF(SEPARATORS)); ++i) {
-			if (startswith_sv(left_substr_sv(this->text, this->cur.pos), SEPARATORS[i].text)) {
-				sep_index = i;
-			}
-		}
-
-		if (sep_index != -1) {
-			*ret_sep = SEPARATORS[sep_index];
-			ret_sep->tag = this->cur;
+		bool is_stop_token = startswith_stop_token(left_substr_sv(this->text, this->cur.pos), stop_tok_type);
+		if (is_stop_token) {
 			*ret_word = substr_sv(this->text, this->cur.pos - c, this->cur.pos);
-			break;
+			return true;
 		}
 
 		tok_iter_next(this);
 		c += 1;
 	}
 	
+	*ret_word = substr_sv(this->text, this->cur.pos - c, this->cur.pos);
+	return false;
 }
 
 
@@ -155,23 +164,6 @@ void tok_trim_left(Tokenizer *this) {
 	while (!tok_eof(this) && isspace(tok_get_cur_char(this))) {
 		tok_iter_next(this);
 	}
-}
-
-enum EnumToken try_recognize_keyword(String_View str, bool *is_keyword) {
-	static struct { String_View str; enum EnumToken t; } kwds[] = {  
-		{ .str = SV_FROM_CSTR("int"), 	 .t = T_KWD_TYPE_INT 	},
-		{ .str = SV_FROM_CSTR("char"),   .t = T_KWD_TYPE_CHAR 	},
-		{ .str = SV_FROM_CSTR("void"),   .t = T_KWD_TYPE_VOID 	},
-		{ .str = SV_FROM_CSTR("return"), .t = T_KWD_RETURN 		},
-	};
-	for (int i = 0; i < (int)COUNT_OF(kwds); ++i) {
-		if (comp_eq_sv(str, kwds[i].str)) {
-			*is_keyword = true;
-			return kwds[i].t;
-		}
-	}
-	*is_keyword = false;
-	return 0;
 }
 
 
@@ -202,12 +194,12 @@ enum EnumToken try_recognize_keyword(String_View str, bool *is_keyword) {
 		
 		// Доходим до сепаратора
 		String_View word = {0};
-		Separator sep = {0};
-		tok_skip_until_separator(this, &word, &sep);
-		
-		bool is_word_before_separator = false;
-		if (word.len > 0) {
-			is_word_before_separator = true;
+	
+		enum EnumToken stop_tok_type;
+		bool is_stop_token = tok_skip_until_stop_token(this, &word, &stop_tok_type);
+		bool is_word_before_stop = word.len > 0;
+
+		if (is_word_before_stop) {
 			enum EnumToken tok_type = T_CUSTOM_WORD; 
 			if (tok_type == T_CUSTOM_WORD) {
 				bool err = false;
@@ -234,51 +226,61 @@ enum EnumToken try_recognize_keyword(String_View str, bool *is_keyword) {
 			tok_add_new_with_text(this, tok_type, tag_start, word);
 		}
 
-		if (sep.text.len > 0) {
+		if (is_stop_token) {
+			Tag stop_tok_tag = this->cur;
 
-			bool is_string_quote = sep.tok_type == T_LIT_STRING;
-			bool is_char_quote = sep.tok_type == T_LIT_CHAR;
+			bool is_char_quote = stop_tok_type == T_SINGLE_QUOTE;
+			bool is_string_quote = stop_tok_type == T_MULTI_QUOTE;
 			char quote;
 			if (is_char_quote) {
 				quote = '\'';
+				stop_tok_type = T_LIT_CHAR; 
 			} else if (is_string_quote) {
 				quote = '"';
+				stop_tok_type = T_LIT_STRING; 
 			}
-		
 			if (is_string_quote || is_char_quote) {
 				tok_iter_next(this);
-				String_View text_inside_quotes = {0};
-				text_inside_quotes.ptr = this->text.ptr + sep.tag.pos + 1;
 				int c = 0;
-				while (!tok_eof(this) && tok_get_cur_char(this) != quote && tok_get_cur_char(this) != '\n') {
+				while (!tok_eof(this)) {
+					if(tok_get_cur_char(this) == '\n') {
+						fprintf(stderr, ""FMT_TAG"", FMT_ARGS_TAG(tag_start));
+						return NULL;
+					}
+					else if (tok_get_cur_char(this) == '\\') {
+						tok_iter_next(this);
+					}
+					else if (tok_get_cur_char(this) == quote) {
+						break;
+					}
 					tok_iter_next(this);
 					c += 1;
 				}
-
 				if (tok_eof(this) || tok_get_cur_char(this) != quote) {
 					fprintf(stderr, ""FMT_TAG"", FMT_ARGS_TAG(tag_start));
 					return NULL;
 				}
-				text_inside_quotes.len = c;
+				String_View text_inside_quotes = { .ptr = this->text.ptr + this->cur.pos - c, .len = c };
 				tok_iter_next(this);
-				tok_add_new_with_text(this, sep.tok_type, sep.tag, text_inside_quotes);	
+				tok_add_new_with_text(this, stop_tok_type, stop_tok_tag, text_inside_quotes);	
 			}
 			else {
-				tok_add_new(this, sep.tok_type, sep.tag);
+				tok_add_new(this, stop_tok_type, stop_tok_tag);
 				// Теперь нам нужно сместить курсор на длину сепаратора, который не ВНУТРИ КАВЫЧЕК
-				for (int i = 0; i < sep.text.len; ++i) {
+				int times_to_skip = len_of_stop_token(stop_tok_type);
+				while (times_to_skip-- > 0) {
 					tok_iter_next(this);
 				}
 			}
 
-			if (is_word_before_separator) {
-				// Смещаем до len-1, потому что мы нашли слово и токен-сепаратор возвращаем НЕ СРАЗУ
+			if (is_word_before_stop) {
+				// Смещаем до len-1, потому что мы нашли слово и токен-сепаратор вернем потом
 				this->cur.tok_index = this->tokens.size - 1;
 			}
 			
 		}
 
-		if (word.len > 0 || sep.text.len > 0) {
+		if (is_word_before_stop || is_stop_token) {
 			return &this->tokens.ptr[this->cur.tok_index - 1];
 		}
 
