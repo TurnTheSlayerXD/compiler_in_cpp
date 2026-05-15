@@ -1,51 +1,69 @@
 #include "tokenizer.c"
 
+#define PREP_ENUM_OP \
+	X(OP_PLUS, "+") \
+	X(OP_MINUS, "-") \
+	X(OP_MUL, "*") \
+	X(OP_DIV, "/") \
+	X(OP_PERCENT, "%") 
 
-enum EnumOpNode {
-    OP_PLUS,
-    OP_MINUS,
-    OP_MUL,
-    OP_DIV,
-    OP_PERCENT,
+typedef enum _EnumOp {
+    #define X(name, value) name,
+		PREP_ENUM_OP
+	#undef X
+} EnumOp;
+
+const char* to_string_EnumOp(EnumOp op) {
+    switch(op) {
+        #define X(name, value) case name: return value;
+            PREP_ENUM_OP
+        #undef X
+        default: assert(false && "UNREACHABLE"); return "";
+    }
+}
+
+
+typedef struct _AstNode AstNode;
+
+typedef struct _Word {
+    String_View text;
+} Word;
+
+typedef struct _Statement {
+    AstNode* expr;
+} Statement;
+
+typedef struct _Expr {
+    EnumOp op;
+    AstNode *lhs;
+    AstNode *rhs;
+} Expr;
+
+typedef enum _NodeType {
+    NONE,
+    WORD,
+    STATEMENT,
+    EXPR,
+} NodeType;
+
+struct _AstNode {
+    Tag tag;
+    NodeType type;
+	union {
+        struct _Word Word;
+        // contains ref to expression, ends with semicolon
+        struct _Statement Statement;
+        // contains seq of operators (math expression)
+        struct _Expr Expr;
+	} _;
 };
 
+#define cast(ptr, type) ((ptr)->_.type)
 
-typedef struct AstNode {
-
-    Tag pos;
-    bool is_partial;
-
-    enum EnumNode {
-        NAN,
-        WORD,
-        
-        STATEMENT,
-        
-        EXPR,
-
-        FUN_CALL,
-    } type;
-
-	union {
-        // contains ref to expression, ends with semicolon
-        struct {
-            AstNode* expr;
-        } statement;
-        
-        // contains seq of operators (math expression)
-        struct {
-            EnumOpNode op;
-            AstNode *lhs;
-            AstNode *rhs;
-        } expr;
-	} _;
-
-} AstNode;
-
-typedef struct Queue {
+typedef struct _Queue {
     int size;
     AstNode* nodes[10];
-};
+} Queue;
 
 void push_queue(Queue *queue, AstNode *node) {
     if (queue->size >= COUNT_OF(queue->nodes)) {
@@ -60,7 +78,7 @@ AstNode* pop_queue(Queue *q) {
         assert(false && "Popping out of empty queue");
     }
     q->size -= 1;
-    return q->ptr[q->size];
+    return q->nodes[q->size];
 } 
 
 AstNode* node_at(Queue *queue, int i) {
@@ -71,30 +89,30 @@ AstNode* node_at(Queue *queue, int i) {
         assert(false && "get_node_queue index out of bounds");
     }
 
-    return queue->ptr[queue->size - i];
+    return queue->nodes[queue->size + i];
 } 
 
-EnumNode node_type_at(Queue *queue, int i) {
+NodeType node_type_at(Queue *queue, int i) {
     if (i >= 0) {
         assert(false && "get_node_queue index can be only less than zero");
     }
     if (queue->size + i < 0) {
-        return NAN;
+        return NONE;
     }
-    return queue->ptr[queue->size + i];
+    return queue->nodes[queue->size + i]->type;
 }
 
-EnumNode last_node_type(Queue *queue, int i) {
+NodeType last_node_type(Queue *queue) {
     return node_type_at(queue, -1);
 }
 
 
 struct {
     AstNode heap[10];
-    AstNode size = 0;
+    int size;
 } __nodeHeap = {0};
 
-AstNode* AstNode_new(enum EnumAstNode type, Tag tag) {
+AstNode* AstNode_new(NodeType type, Tag tag) {
     if (__nodeHeap.size >= COUNT_OF(__nodeHeap.heap)) {
         assert(false && "Exceeded limit of node heap");
     }
@@ -102,120 +120,215 @@ AstNode* AstNode_new(enum EnumAstNode type, Tag tag) {
     AstNode *p = &__nodeHeap.heap[__nodeHeap.size - 1];
     p->type = type;
     p->tag = tag;
-    p->_ = {0};
+    memset(&p->_, 0, sizeof(p->_));
+
     return p; 
 }
 
-int op_order(EnumOpNode t) {
-    switch (f) {
-        case OP_PLUS: case OP_MINUS: case OP_PERCENT: return 0;
-        case OP_MUL: case OP_DIV: return 1;
-        default: assert(false && "op_node UNREACHABLE"); return 0;
-    }    
+
+AstNode* AstNode_new_Word(String_View text, Tag tag) {
+    AstNode *p = AstNode_new(WORD, tag);
+    cast(p, Word).text = text;
+    return p; 
 }
 
-int nodes_cmp(AstNode *prev_node, AstNode *new_node) {
-    return op_order(l) - op_order(r); 
-}
-
-AstNode* handle_token_word(Queue *queue, Token t) {
-    if (t.type != T_CUSTOM_WORD) {
-        return NULL;
+EnumOp cast_token_to_enum_op(Token t) {
+    switch (t.type) {
+        case T_OP_PLUS: return OP_PLUS;
+        case T_OP_MINUS: return OP_MINUS;
+        case T_STAR: return OP_MUL;
+        case T_OP_DIVIDE: return OP_DIV;
+        case T_OP_PERCENT: return OP_PERCENT;
+        
+        default: assert(false && "Unexpected token to enum cast"); return OP_PERCENT;
     }
-    
-    if (node_type_at(queue, -1) == EXPR) {
-        AstNode *expr = pop_queue(q);
-        expr->_.rhs = AstNode_new(WORD, false);
-        return expr;
-    }
-
-    return AstNode_new(WORD, false);
 }
 
-#define n_f(node, field) node->_.field
+AstNode* AstNode_new_Expr(Token t, Tag tag) {
+    AstNode *p = AstNode_new(EXPR, tag);
+    cast(p, Expr).op = cast_token_to_enum_op(t);
+    return p; 
+}
 
-AstNode* handle_op_token(Queue *q, Token t) {
-    
+
+
+bool is_op_token(Token t) {
     switch(t.type) {
-        #define X(name, str) case name: break;
+        #define X(name, str) case name: return true;
             TOKENS_OPERATIONS
         #undef X
-        default:  return NULL;
+        case T_STAR: return true;
+        default:  return false;
+    }
+}
+
+bool isinstance(AstNode *n, NodeType t) {
+    return n->type == t;
+}
+
+
+int get_order(EnumOp op) {
+    switch(op) {
+        case OP_PLUS: case OP_MINUS: case OP_PERCENT: return 0;
+        case OP_MUL: case OP_DIV: return 1;
+        default: assert(false && "Unknown op passed"); return -1;
+    }
+}
+
+int node_expr_cmp(AstNode *lhs, AstNode *rhs) {
+    if (!isinstance(lhs, EXPR) || !isinstance(rhs, EXPR)) {
+        assert(false && "Expected both args of node_expr_cmp to be EXPR");
     }
 
-    if (node_type_at(q, -1) == WORD) {
-        AstNode *new_node = AstNode_new(EXPR, true);
-        AstNode *word = pop_queue(q);
-        new_node->_.lhs = word;    
-        return new_node;  
+    return get_order(cast(lhs, Expr).op) -  get_order(cast(rhs, Expr).op);
+}
+
+
+bool handle_word_token(Queue *q, Token t) {
+    if (t.type != T_CUSTOM_WORD) {
+        return false;
     }
+    
 
     if (node_type_at(q, -1) == EXPR) {
-        AstNode *new_expr = AstNode_new(EXPR, false);
-        AstNode *prev_expr = pop_queue(q);
-        int cmp = nodes_cmp(prev_expr, new_expr);
+        AstNode *expr = node_at(q, -1);
+        while (cast(expr, Expr).rhs) {
+            if (!isinstance(cast(expr, Expr).rhs, EXPR)) {
+                break;
+            }
+            expr = cast(expr, Expr).rhs;
+        }
+        if (cast(expr, Expr).rhs) {
+            fprintf(stderr, "Failed to find place for token at "FMT_TAG"\n", FMT_ARGS_TAG(t.tag));
+            return false;
+        }
+
+        cast(expr, Expr).rhs = AstNode_new_Word(t.text, t.tag);
+        return true;
+    }
+
+    push_queue(q, AstNode_new_Word(t.text, t.tag));
+    return true;
+}
+
+bool is_operand(AstNode *n) {
+    switch (n->type) {
+        case WORD: return true;
+        default: return false;
+    } 
+}
+
+
+
+bool handle_op_token(Queue *q, Token t) {
+    if (!is_op_token(t)) {
+        return false;
+    }
+    if (node_type_at(q, -1) == WORD) {
+        AstNode *expr = AstNode_new_Expr(t, t.tag);
+        AstNode *word = pop_queue(q);
+        cast(expr, Expr).lhs = word;    
+        push_queue(q, expr);
+        return true;  
+    }
+    if (node_type_at(q, -1) == EXPR) {
+        AstNode *new_expr = AstNode_new_Expr(t, t.tag);
+        AstNode *prev_expr = node_at(q, -1);
+        int cmp = node_expr_cmp(prev_expr, new_expr);
         if (cmp <= 0) {
-            n_f(new_expr, lhs) = n_f(prev_expr, rhs); 
-            n_f(prev_expr, rhs) = new_expr;  
-            push_queue(prev_expr);
-            return new_expr;
+            while (cast(prev_expr, Expr).rhs && !is_operand(cast(prev_expr, Expr).rhs)) {
+                prev_expr = cast(prev_expr, Expr).rhs;
+            }
+            if (!is_operand(cast(prev_expr, Expr).rhs)) {
+                fprintf(stderr, "Failed finding rhs operand for OPERATION token at "FMT_TAG"\n", FMT_ARGS_TAG(t.tag));
+                return false;
+            }
+
+            cast(new_expr, Expr).lhs = cast(prev_expr, Expr).rhs;
+            cast(prev_expr, Expr).rhs = new_expr;
+            return true;
         }
         else {
-            n_f(new_expr, lhs) = prev_expr;
-            return new_expr;
+            pop_queue(q);
+            cast(new_expr, Expr).lhs = prev_expr;
+            push_queue(q, new_expr);
+            return true;
         }
     }
-    else if (node_type_at(q, -1) == STATEMENT) {
-        AstNode* statement = pop_queue(q);
-        n_f(statement, expr) = AstNode_new(EXPR, false); 
-        push_queue(statement);
-    }
-  
-}
-
-AstNode* handle_brace_token(Queue *q, Token t) {
-    switch(t) { case T_L_BR : case T_R_BR: break; default: return NULL; }
-
-
-    if (t == T_L_BR) {
-
-        if (node_type_at(q, -1) == EXPR 
-         && n_f(node_at(q, -1), rhs) 
-         && n_f(node_at(q, -1), rhs).type == WORD
-        ) {
-            AstNode *fun_call = AstNode_new(FUN_CALL);
-            AstNode *word = n_f(node_at(q, -1), rhs);
-            n_f(fun_call, fun_name) = word;
-            n_f(node_at(q, -1), rhs) = fun_call;
-            return fun_call;
-        }
-        else if (node_type_at(q, -1) == EXPR 
-              && !n_f(node_at(q, -1), rhs)) {
-            AstNode *word = pop_queue(q);
-            AstNode *prev_expr = pop_queue(q);
-            prev_expr->tag = 
-        }
-     
-        return AstNode_new(EXPR, false);
+    else {
+        assert(false && "TODO");
     }
 
+    return false;
 }
 
 
-int main() {
+const int INDENTATION_STEP = 4;
+char* to_string_AstNode(char* ptr, AstNode *n, int indentation) {
+    if (!n) {
+        for (int i = 0; i < indentation; ++i) { *ptr = ' '; ++ptr;}
+        int ret = sprintf(ptr, "%s\n\r", "NULL"); 
+        return ptr + ret;
+    }
+    switch (n->type) {
+        case WORD: 
+            for (int i = 0; i < indentation; ++i) { *ptr = ' '; ++ptr;}
+            int ret = sprintf(ptr, "%s [%.*s]\n\r", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr); 
+            return ptr + ret;
+        case EXPR: 
+            for (int i = 0; i < indentation; ++i) { *ptr = ' '; ++ptr;}
+
+            int c = sprintf(ptr, "%s [%s]: {\n\r", "EXPR", to_string_EnumOp(cast(n, Expr).op)); 
+            
+            ptr = to_string_AstNode(ptr + c, cast(n, Expr).lhs, indentation + INDENTATION_STEP);
+            ptr = to_string_AstNode(ptr, cast(n, Expr).rhs, indentation + INDENTATION_STEP);
+
+            for (int i = 0; i < indentation; ++i) { *ptr = ' '; ++ptr;}
+            c = sprintf(ptr, "}\n\r"); 
+            return ptr + c;
+        default:
+            assert(false && "UNREACHABLE");
+            return NULL;
+    }
+}
+
+
+typedef bool (*Handler)(Queue *q, Token t);
+
+int main(void) {
 	
-    const char *program_text = "1 + x * 69 == 35";
+    const char *program_text = "a + x * c";
 
-	Tokenizer tokenizer = Tokenizer_new(program_text);
-	AstNode *top_level;
+	Tokenizer tokenizer = Tokenizer_new((String_View){.ptr = program_text, .len = strlen(program_text)});
 
+    Handler handlers[] = {
+        handle_word_token, 
+        handle_op_token,
+    };
 
+    Queue q = {0};
 
     Token *t;
-	while (t = tok_next_token(tokenizer)) {
-        
+	while ((t = tok_next_token(&tokenizer))) {
+        bool handled = false;
+        for (int h = 0; h < COUNT_OF(handlers); ++h) {
+            if (handlers[h](&q, *t)) {
+                handled = true;
+                break;
+            }
+        }
+
+        if (!handled) {
+            assert(false && "FAILED handling TOKEN");
+        }
 	}
 
+    char buf[100] = {0};
+    to_string_AstNode(buf, node_at(&q, -1), 0);
+
+    printf("_____________________________________________\n");
+    printf("%s", buf);
+    printf("_____________________________________________\n");
 
     clear_Token_array(&tokenizer.tokens);
     return 0;

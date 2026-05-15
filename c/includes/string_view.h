@@ -19,7 +19,7 @@ typedef struct String_View {
 
 String_View left_substr_sv(String_View str, int p) {
     if (p > str.len) {
-        assert(false && "String_View from_left(String_View str, int p)");
+        assert(false && "String_View  from_left(String_View str, int p)");
     }
     return (String_View) { .ptr = str.ptr + p, .len = str.len - p};
 }
@@ -27,7 +27,7 @@ String_View left_substr_sv(String_View str, int p) {
 
 
 String_View substr_sv(String_View str, int l, int r) {
-    if (r >= str.len || l > r) {
+    if (r > str.len || l > r) {
         assert(false && "substr_View");
     }
     return (String_View){ .ptr = str.ptr + l, .len = r - l};

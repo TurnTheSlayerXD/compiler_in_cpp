@@ -12,7 +12,6 @@
 #include "token_types.h"
 
 
-#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 typedef struct Tag {
 	int pos;
@@ -88,7 +87,7 @@ static char heap_str[100] = {0};
 
 void prep_heap_str(String_View str) {
 	int len = MIN(str.len, COUNT_OF(heap_str));
-	if (str.len < (int)COUNT_OF(heap_str)) {
+	if (str.len < COUNT_OF(heap_str)) {
 		heap_str[str.len] = '\0';
 		memcpy(heap_str, str.ptr, len);
 	}

@@ -129,13 +129,13 @@ void init_tokens(void) {
 	}
 	__initialized = true;
 	
-	for (int i = 0; i < (int)COUNT_OF(SEPARATORS); ++i) {
+	for (int i = 0; i < COUNT_OF(SEPARATORS); ++i) {
 		const char *str = str_EnumToken(SEPARATORS[i].tok_type);
 		SEPARATORS[i].text = (String_View){ .ptr =  str, .len = strlen(str)};
 	}
 	qsort(SEPARATORS, COUNT_OF(SEPARATORS), sizeof(SEPARATORS[0]), comp_callback);
 
-	for (int i = 0; i < (int)COUNT_OF(KEYWORDS); ++i) {
+	for (int i = 0; i < COUNT_OF(KEYWORDS); ++i) {
 		const char *str = str_EnumToken(KEYWORDS[i].tok_type);
 		KEYWORDS[i].text = (String_View){ .ptr =  str, .len = strlen(str)};
 	}
@@ -145,7 +145,7 @@ void init_tokens(void) {
 #include <string_view.h>
 
 bool startswith_stop_token(String_View view, enum EnumToken *ret) {
-	for (int i = 0; i < (int)COUNT_OF(SEPARATORS); ++i) {
+	for (int i = 0; i < COUNT_OF(SEPARATORS); ++i) {
 		if (startswith_sv(view, SEPARATORS[i].text)) {
 			*ret = SEPARATORS[i].tok_type;
 			return true; 		
@@ -157,7 +157,7 @@ bool startswith_stop_token(String_View view, enum EnumToken *ret) {
 
 int len_of_stop_token(enum EnumToken t) {
 		
-	for (int i = 0; i < (int)COUNT_OF(SEPARATORS); ++i) {
+	for (int i = 0; i < COUNT_OF(SEPARATORS); ++i) {
 		if (SEPARATORS[i].tok_type == t) {
 			return SEPARATORS[i].text.len;
 		}
@@ -169,7 +169,7 @@ int len_of_stop_token(enum EnumToken t) {
 }
 
 enum EnumToken try_recognize_keyword(String_View str, bool *is_keyword) {
-	for (int i = 0; i < (int)COUNT_OF(KEYWORDS); ++i) {
+	for (int i = 0; i < COUNT_OF(KEYWORDS); ++i) {
 		if (comp_eq_sv(str, KEYWORDS[i].text)) {
 			*is_keyword = true;
 			return KEYWORDS[i].tok_type;
