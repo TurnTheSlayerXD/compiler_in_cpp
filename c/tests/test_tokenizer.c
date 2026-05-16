@@ -7,6 +7,10 @@ struct test_target_arg {
 };
 
 void test(const char *test_id, const char *program_text, struct test_target_arg target, bool with_debug) {
+
+    printf("----------------------------------------------------------------------------------------\n");
+
+
     Token_array actual = {0};
 
     Tokenizer tokenizer = Tokenizer_new((String_View){.ptr = program_text, .len = strlen(program_text)});
@@ -43,8 +47,6 @@ void test(const char *test_id, const char *program_text, struct test_target_arg 
     clear_Token_array(&actual);
 
     
-    printf("------------------------------------------------------------------------------------------------------\n");
-
     if (is_err) {
         printf("FAILED TEST %s!\n", test_id);
     }
@@ -52,16 +54,16 @@ void test(const char *test_id, const char *program_text, struct test_target_arg 
         printf("SUCCESFUL TEST %s!\n", test_id);
     }
 
-    printf("------------------------------------------------------------------------------------------------------\n");
+    printf("----------------------------------------------------------------------------------------\n\n");
 }
 
 
 
 #define LINE(...) __VA_ARGS__
 
-int main() {
+int main(void) {
     enum EnumToken arg1[] = { T_KWD_TYPE_INT, T_CUSTOM_WORD, T_ASSIGN, T_LIT_I, T_SEMICOLON };
-    test("1", "int val = 1;", TEST_ARG(arg1), false );
+    test("1", "int val = 1;", TEST_ARG(arg1), false);
 
     enum EnumToken arg2[] = { 
         LINE(T_KWD_TYPE_INT, T_CUSTOM_WORD, T_L_BR, T_KWD_TYPE_INT, T_CUSTOM_WORD, T_COMMA, T_KWD_TYPE_CHAR, T_STAR, T_STAR, T_CUSTOM_WORD, T_R_BR, T_L_CURL),
@@ -87,12 +89,23 @@ int main() {
         false
     );
 
-    enum EnumToken arg3 = {
+    enum EnumToken arg3[] = {
         T_LIT_I, T_OP_PLUS, T_CUSTOM_WORD, T_STAR, T_LIT_I, T_CMP_EQ, T_LIT_I,
     };
     test("3", 
         "1 + x * 69 == 35",
-        TEST_ARG(arg3)
+        TEST_ARG(arg3),
+        false
+    );
+
+
+    enum EnumToken arg4[] = {
+        T_CUSTOM_WORD, T_OP_PLUS, T_CUSTOM_WORD, T_STAR, T_CUSTOM_WORD, T_OP_DIVIDE, T_CUSTOM_WORD, T_OP_PLUS, T_CUSTOM_WORD, T_OP_MINUS, T_CUSTOM_WORD,
+    };
+    test("4",
+        "a + x * c / m + d - e",
+        TEST_ARG(arg4),
+        true
     );
 
 }

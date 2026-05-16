@@ -12,7 +12,7 @@
 #define TOKENS_OPERATIONS \
 	X(T_OP_PLUS,"+") \
 	X(T_OP_MINUS,"-") \
-	X(T_OP_DIVIDE,"\\") \
+	X(T_OP_DIVIDE,"/") \
 	X(T_OP_PERCENT,"%") 
 
 #define TOKENS_CMP \

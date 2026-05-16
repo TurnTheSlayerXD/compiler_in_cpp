@@ -5,7 +5,9 @@
             "label": "build",
             "command": "nmake all /nologo",
             "args": [],
-            "type": "shell"
+            "type": "shell",
+            "problemMatcher": [],
+            "group": "build"
         }
     ]
 }
