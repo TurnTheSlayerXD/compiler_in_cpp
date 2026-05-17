@@ -1,12 +1,13 @@
 
 #include "tokenizer.c"
+#include <macros.h>
 
 #define PREP_ENUM_OP \
 	X(OP_PLUS, "+") \
 	X(OP_MINUS, "-") \
 	X(OP_MUL, "*") \
 	X(OP_DIV, "/") \
-	X(OP_PERCENT, "%") 
+	X(OP_PERCENT, "%")
 
 typedef enum _EnumOp {
     #define X(name, value) name,
@@ -37,13 +38,19 @@ typedef struct _Expr {
     EnumOp op;
     AstNode *lhs;
     AstNode *rhs;
+    bool is_inside_brace;
 } Expr;
+
 
 typedef enum _NodeType {
     NONE,
     WORD,
     STATEMENT,
     EXPR,
+
+    START_BRACKET,
+
+    START_FUN_CALL,
 } NodeType;
 
 struct _AstNode {
@@ -101,11 +108,6 @@ NodeType node_type_at(Queue *queue, int i) {
     }
     return queue->nodes[queue->size + i]->type;
 }
-
-NodeType last_node_type(Queue *queue) {
-    return node_type_at(queue, -1);
-}
-
 
 struct {
     AstNode heap[20];
@@ -181,10 +183,13 @@ int node_cmp_expr(AstNode *lhs, AstNode *rhs) {
         assert(false && "Expected both args of node_cmp_expr to be EXPR");
     }
 
+    if (cast(rhs, Expr).is_inside_brace) {
+        return -1;
+    }
+
     return get_order(cast(lhs, Expr).op) -  get_order(cast(rhs, Expr).op);
 }
 
-typedef bool (*Handler)(Queue *q, Token t);
 
 bool is_operand(AstNode *n) {
     switch (n->type) {
@@ -193,10 +198,66 @@ bool is_operand(AstNode *n) {
     } 
 }
 
-bool handle_word_token(Queue *q, Token t) {
+
+typedef struct _AstPrintParams {
+    int ind_step;
+    const char* sep;
+} AstPrintParams;
+
+char* to_string_AstTree(AstPrintParams params, char* ptr, const char *end_ptr, AstNode *n, int ind) {
+    if (!n) {
+        for (int i = 0; i < MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr; }
+        
+        int ret = snprintf(ptr, MAX(end_ptr-ptr, 0), "%s,%s", "NULL", params.sep);
+        
+        return ptr + ret;
+    }
+    switch (n->type) {
+        case WORD: 
+            for (int i = 0; i < ind && MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr; }
+
+            int ret = snprintf(ptr, MAX(end_ptr - ptr, 0), "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, params.sep); 
+        
+            return ptr + ret;
+       
+        case EXPR: 
+            for (int i = 0; i < ind && MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr; }
+        
+            int c = snprintf(ptr, MAX(end_ptr-ptr, 0), "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), params.sep); 
+        
+            ptr = to_string_AstTree(params, ptr + c, end_ptr, cast(n, Expr).lhs, ind + params.ind_step);
+        
+            ptr = to_string_AstTree(params, ptr, end_ptr, cast(n, Expr).rhs, ind + params.ind_step);
+        
+            for (int i = 0; i < ind && MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr;}
+        
+            c = snprintf(ptr, MAX(end_ptr-ptr, 0), "}%s", params.sep); 
+        
+            return ptr + c;
+        
+        default:
+            assert(false && "to_string_AstTree Unknown AstNode Type");
+            return NULL;
+    }
+}
+
+typedef bool (*Handler)(Queue *q, Token t, Tokenizer *tokenizer);
+
+bool handle_word_token(Queue *q, Token t, Tokenizer *tokenizer) {
     if (t.type != T_CUSTOM_WORD) {
         return false;
     }
+
+    Tag before_pos = tok_get_cur_pos(tokenizer);
+    Token *next_tok = tok_next_token(tokenizer);
+    if (next_tok != NULL && next_tok->type == T_L_BR) {
+        push_queue(q, AstNode_new(START_FUN_CALL, next_tok->tag));
+        return true;
+    }
+    else {
+        tok_reset(tokenizer, before_pos);
+    }
+
     if (node_type_at(q, -1) == EXPR) {
         AstNode *expr = node_at(q, -1);
         while (cast(expr, Expr).rhs) {
@@ -218,28 +279,16 @@ bool handle_word_token(Queue *q, Token t) {
     return true;
 }
 
-
-
-bool handle_op_token(Queue *q, Token t) {
-    if (!is_op_token(t)) {
-        return false;
-    }
-    if (node_type_at(q, -1) == WORD) {
-        AstNode *expr = AstNode_new_Expr(t, t.tag);
-        AstNode *word = pop_queue(q);
-        cast(expr, Expr).lhs = word;    
-        push_queue(q, expr);
-        return true;  
+bool try_insert_new_expr_into_existing_expr(Queue *q, AstNode *new_expr) {
+    if (!isinstance(new_expr, EXPR)) {
+        assert(false && "Expected AstNode of type EXPR in ");
     }
     if (node_type_at(q, -1) == EXPR) {
-        AstNode *new_expr = AstNode_new_Expr(t, t.tag);
         AstNode *prev_expr = node_at(q, -1);
-        
         if (node_cmp_expr(new_expr, prev_expr) < 0) {
             pop_queue(q);
             cast(new_expr, Expr).lhs = prev_expr;
             push_queue(q, new_expr);
-            return true;
         }
         else {
             AstNode *parent = prev_expr;
@@ -261,44 +310,86 @@ bool handle_op_token(Queue *q, Token t) {
                 cast(parent, Expr).rhs = new_expr;
                 cast(new_expr, Expr).lhs = prev_expr;
             }
-
-            return true;
         }
-    }
-    else {
-        assert(false && "TODO");
+        return true;
     }
 
     return false;
 }
 
-
-typedef struct _AstPrintParams {
-    int ind_step;
-    const char* sep;
-} AstPrintParams;
-
-char* to_string_AstTree(AstPrintParams params, char* ptr, AstNode *n, int ind) {
-    if (!n) {
-        for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr;}
-        int ret = sprintf(ptr, "%s,%s", "NULL", params.sep);
-        return ptr + ret;
+bool handle_op_token(Queue *q, Token t, Tokenizer *tokenizer) {
+    (void) tokenizer;
+    if (!is_op_token(t)) {
+        return false;
     }
-    switch (n->type) {
-        case WORD: 
-            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr;}
-            int ret = sprintf(ptr, "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, params.sep); 
-            return ptr + ret;
-        case EXPR: 
-            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr;}
-            int c = sprintf(ptr, "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), params.sep); 
-            ptr = to_string_AstTree(params, ptr + c, cast(n, Expr).lhs, ind + params.ind_step);
-            ptr = to_string_AstTree(params, ptr, cast(n, Expr).rhs, ind + params.ind_step);
-            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr;}
-            c = sprintf(ptr, "}%s", params.sep); 
-            return ptr + c;
-        default:
-            assert(false && "to_string_AstTree Unknown AstNode Type");
-            return NULL;
+
+    if (node_type_at(q, -1) == WORD) {
+        AstNode *expr = AstNode_new_Expr(t, t.tag);
+        AstNode *word = pop_queue(q);
+        cast(expr, Expr).lhs = word;    
+        push_queue(q, expr);
+        return true;  
     }
+    if (node_type_at(q, -1) == EXPR) {
+        bool did_insert = try_insert_new_expr_into_existing_expr(q, AstNode_new_Expr(t, t.tag));
+        if (did_insert) {
+            return true;
+        }
+    }
+
+    if (node_type_at(q, -1) == START_BRACKET) {
+        push_queue(q, AstNode_new_Expr(t, t.tag));
+        return true;
+    }
+
+    return false;
 }
+
+bool handle_brace_token(Queue *q, Token t, Tokenizer *tokenizer) {
+    (void) tokenizer;
+
+    switch (t.type) {
+        case T_L_BR: case T_R_BR: break;
+        default: return false;
+    }
+
+    if (t.type == T_L_BR) {
+        push_queue(q, AstNode_new(START_BRACKET, t.tag));
+        return true;
+    }
+    if (t.type == T_R_BR && node_type_at(q, -2) == START_BRACKET && 
+        (node_type_at(q, -1) == EXPR || node_type_at(q, -1) == WORD)) {
+        // Pop node, which can be either WORD or EXPR
+        AstNode *inside_brace_node = pop_queue(q);
+        cast(inside_brace_node, Expr).is_inside_brace = true;
+        // Pop START_BRACKET node
+        pop_queue(q);
+
+        if (node_type_at(q, -1) == EXPR) {
+            AstNode *expr = node_at(q, -1);
+            // Trying to insert into existing EXPR NODE
+            while (cast(expr, Expr).rhs && isinstance(cast(expr, Expr).rhs, EXPR)) {
+                expr = cast(expr, Expr).rhs;
+            }
+            if (cast(expr, Expr).rhs) {
+                return false;
+            }
+            cast(expr, Expr).rhs = inside_brace_node;
+            // Otherwise just PUSHING queue with expression inside BRACES
+            return true;
+        }
+        else {
+            push_queue(q, inside_brace_node);
+        }
+
+        return true;
+    }
+    
+    if (t.type == T_R_BR && node_type_at(q, -2) == START_FUN_CALL) { 
+        assert(false && "TODO");
+    }
+    
+    return false;
+}
+
+

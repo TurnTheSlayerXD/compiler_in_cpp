@@ -1,7 +1,8 @@
 
 #include "../ast.c"
+#include <string.h>
 
-void test(const char *program_text, const char *expected_ast, bool debug) {
+void test(const char *test_id, const char *program_text, const char *expected_ast, bool debug) {
     printf("_____________________________________________\n");
 	
     Tokenizer tokenizer = Tokenizer_new((String_View){.ptr = program_text, .len = strlen(program_text)});
@@ -28,21 +29,34 @@ void test(const char *program_text, const char *expected_ast, bool debug) {
         }
 	}
 
-    char buf[300] = {0};
-    to_string_AstTree((AstPrintParams){ .sep = "", .ind_step = 0 }, buf, node_at(&q, -1), 0);
-
-
+    char buf[700] = {0};
+    to_string_AstTree(
+        (AstPrintParams){ .sep = "", .ind_step = 0 }, 
+        buf, 
+        buf + COUNT_OF(buf), 
+        node_at(&q, -1), 
+        0
+    );
 
     if (strcmp(expected_ast, buf) != 0) {
-        printf("FAILED TEST %s!\n", test_id);
+        fprintf(stderr, 
+            "FAILED TEST %s!\n"
+            "Expected:\n\r%s\n"
+            "Found:\n\r%s\n", test_id, expected_ast, buf);
     }
     else {
         printf("SUCCESFUL TEST %s!\n", test_id);
     }
 
     if (debug) {
-        memset(buf, COUNT_OF(buf), 0);
-        to_string_AstTree((AstPrintParams){ .sep = "\n\r", .ind_step = 4 }, buf, node_at(&q, -1), 0);
+        buf[COUNT_OF(buf) - 1] = '\0';
+        to_string_AstTree(
+            (AstPrintParams){ .sep = "\n\r", .ind_step = 4 }, 
+            buf,
+            buf + COUNT_OF(buf), 
+            node_at(&q, -1), 0
+        );
+        printf("%s\n", buf);
     }
 
     printf("\n_____________________________________________\n\n");
@@ -55,8 +69,12 @@ void test(const char *program_text, const char *expected_ast, bool debug) {
 int main(void) {
 	
     test(
+        "1",
+
         "a + x * c / m + d - e / t * y + r / k", 
-        "EXPR [+]: { WORD [a], EXPR [+]: {  EXPR [/]: {   EXPR [*]: {    WORD [x],    WORD [c],   }   WORD [m],  }  EXPR [+]: {   EXPR [-]: {    WORD [d],    EXPR [*]: {     EXPR [/]: {      WORD [e],      WORD [t],     }     WORD [y],    }   }   EXPR [/]: {    WORD [r],    WORD [k],   }  } }}",
+
+        "EXPR [+]: {WORD [a],EXPR [+]: {EXPR [/]: {EXPR [*]: {WORD [x],WORD [c],}WORD [m],}EXPR [+]: {EXPR [-]: {WORD [d],EXPR [*]: {EXPR [/]: {WORD [e],WORD [t],}WORD [y],}}EXPR [/]: {WORD [r],WORD [k],}}}}",
+
         true
     );
 

@@ -11,6 +11,14 @@
             "program": "${workspaceFolder}/a.exe",
             "args": [],
             "preLaunchTask": "build"
+        },
+        {
+            "name": "Launch AST Test",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/out/test_arithmetic_ast.exe",
+            "args": [],
+            "preLaunchTask": "build_test_ast"
         }
     ]
 }

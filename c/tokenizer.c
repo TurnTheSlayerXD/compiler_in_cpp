@@ -12,6 +12,8 @@
 #include "token_types.h"
 
 
+#define FMT_TAG "Tag pos:%d,row:%d,col:%d "
+#define FMT_ARGS_TAG(p) (p.pos),(p.row),(p.col)
 
 typedef struct Tag {
 	int pos;
@@ -35,7 +37,11 @@ typedef struct Token_array {
 typedef struct Tokenizer {
     String_View text;
 	Token_array tokens;
-	Tag cur; 
+
+	int pos;
+	int row;
+	int col;
+	int tok_index;
 } Tokenizer;
 
 
@@ -61,26 +67,30 @@ Tokenizer Tokenizer_new(String_View text) {
     return (Tokenizer){ 
         .text = text, 
         .tokens = {0}, 
-        .cur = (Tag){ .pos = 0, .row = 0, .col = 0, .tok_index = 0 },
+
+		.pos = 0,
+		.row = 0,
+		.col = 0,
+        .tok_index = 0,
     };
 }
 
 bool tok_eof(Tokenizer *this) {
-	return this->cur.pos >= this->text.len;
+	return this->pos >= this->text.len;
 }
 
 void tok_iter_next(Tokenizer *this) {
 	if (tok_eof(this)) {
 		assert(false && "tok_iter_next tok_eof");
 	}
-	if (this->text.ptr[this->cur.pos] == '\n') {
-		this->cur.row += 1;
-		this->cur.col = 0;
+	if (this->text.ptr[this->pos] == '\n') {
+		this->row += 1;
+		this->col = 0;
 	}
 	else {
-		this->cur.col += 1;
+		this->col += 1;
 	}
-	this->cur.pos += 1;
+	this->pos += 1;
 }
 
 static char heap_str[100] = {0};
@@ -123,14 +133,14 @@ bool tok_skip_until_stop_token(Tokenizer *this, String_View *ret_word, enum Enum
 	size_t c = 0;
 
 	while (!tok_eof(this)) {
-		if (isspace(this->text.ptr[this->cur.pos])) {
-			*ret_word = substr_sv(this->text, this->cur.pos - c, this->cur.pos);
+		if (isspace(this->text.ptr[this->pos])) {
+			*ret_word = substr_sv(this->text, this->pos - c, this->pos);
 			return false;
 		}
 
-		bool is_stop_token = startswith_stop_token(left_substr_sv(this->text, this->cur.pos), stop_tok_type);
+		bool is_stop_token = startswith_stop_token(left_substr_sv(this->text, this->pos), stop_tok_type);
 		if (is_stop_token) {
-			*ret_word = substr_sv(this->text, this->cur.pos - c, this->cur.pos);
+			*ret_word = substr_sv(this->text, this->pos - c, this->pos);
 			return true;
 		}
 
@@ -138,7 +148,7 @@ bool tok_skip_until_stop_token(Tokenizer *this, String_View *ret_word, enum Enum
 		c += 1;
 	}
 	
-	*ret_word = substr_sv(this->text, this->cur.pos - c, this->cur.pos);
+	*ret_word = substr_sv(this->text, this->pos - c, this->pos);
 	return false;
 }
 
@@ -147,16 +157,16 @@ char tok_get_cur_char(Tokenizer *this) {
 	if (tok_eof(this)) {
 		assert(false && "tok_get_cur_char()");
 	}
-	return this->text.ptr[this->cur.pos];
+	return this->text.ptr[this->pos];
 }
 
 void tok_add_new(Tokenizer *this, enum EnumToken tp, Tag tag) {
 	push_Token_array(&this->tokens, (Token){ .tag = tag, .type = tp, .text = {0} });
-	this->cur.tok_index = this->tokens.size; 
+	this->tok_index = this->tokens.size; 
 }
 void tok_add_new_with_text(Tokenizer *this, enum EnumToken tp, Tag tag, String_View text) {
 	push_Token_array(&this->tokens, (Token){ .tag = tag, .type = tp, .text = text });
-	this->cur.tok_index = this->tokens.size; 
+	this->tok_index = this->tokens.size; 
 }
 
 void tok_trim_left(Tokenizer *this) {
@@ -166,13 +176,23 @@ void tok_trim_left(Tokenizer *this) {
 }
 
 
-#define FMT_TAG "Tag pos:%d,row:%d,col:%d "
-#define FMT_ARGS_TAG(p) (p.pos),(p.row),(p.col)
+
+Tag tok_get_cur_pos(Tokenizer *this) {
+	return (Tag){ .pos = this->pos, .row = this->row, .col = this->col, .tok_index = this->tok_index };
+} 
+
+void tok_reset(Tokenizer *this, Tag tag) {
+	if (tag.tok_index > this->tokens.size || tag.tok_index < 0) {
+		assert(false && "Invalid .tok_index");
+	}
+	this->tok_index = tag.tok_index;
+}
+
 
  Token* tok_next_token(Tokenizer* this)  {
-	if (this->cur.tok_index < this->tokens.size) {
-		this->cur.tok_index += 1;
-		return &this->tokens.ptr[this->cur.tok_index - 1];
+	if (this->tok_index < this->tokens.size) {
+		this->tok_index += 1;
+		return &this->tokens.ptr[this->tok_index - 1];
 	}
 
 	for (;;) {
@@ -182,7 +202,7 @@ void tok_trim_left(Tokenizer *this) {
 			return NULL;
 		}
 
-		Tag tag_start = this->cur;
+		Tag tag_start = tok_get_cur_pos(this);
 
 		if (tok_get_cur_char(this) == '#') {
 			while (!tok_eof(this) && tok_get_cur_char(this) != '\n') {
@@ -226,7 +246,7 @@ void tok_trim_left(Tokenizer *this) {
 		}
 
 		if (is_stop_token) {
-			Tag stop_tok_tag = this->cur;
+			Tag stop_tok_tag = tok_get_cur_pos(this);
 
 			bool is_char_quote = stop_tok_type == T_SINGLE_QUOTE;
 			bool is_string_quote = stop_tok_type == T_MULTI_QUOTE;
@@ -259,13 +279,13 @@ void tok_trim_left(Tokenizer *this) {
 					fprintf(stderr, ""FMT_TAG"", FMT_ARGS_TAG(tag_start));
 					return NULL;
 				}
-				String_View text_inside_quotes = { .ptr = this->text.ptr + this->cur.pos - c, .len = c };
+				String_View text_inside_quotes = { .ptr = this->text.ptr + this->pos - c, .len = c };
 				tok_iter_next(this);
 				tok_add_new_with_text(this, stop_tok_type, stop_tok_tag, text_inside_quotes);	
 			}
 			else {
 				tok_add_new(this, stop_tok_type, stop_tok_tag);
-				// Теперь нам нужно сместить курсор на длину сепаратора, который не ВНУТРИ КАВЫЧЕК
+				// Теперь нам нужно сместить курсор на длину сепаратора
 				int times_to_skip = len_of_stop_token(stop_tok_type);
 				while (times_to_skip-- > 0) {
 					tok_iter_next(this);
@@ -274,13 +294,13 @@ void tok_trim_left(Tokenizer *this) {
 
 			if (is_word_before_stop) {
 				// Смещаем до len-1, потому что мы нашли слово и токен-сепаратор вернем потом
-				this->cur.tok_index = this->tokens.size - 1;
+				this->tok_index = this->tokens.size - 1;
 			}
 			
 		}
 
 		if (is_word_before_stop || is_stop_token) {
-			return &this->tokens.ptr[this->cur.tok_index - 1];
+			return &this->tokens.ptr[this->tok_index - 1];
 		}
 
 		return NULL;

@@ -8,6 +8,15 @@
             "type": "shell",
             "problemMatcher": [],
             "group": "build"
+        },
+        {
+            "label": "build_test_ast",
+            "command": "nmake test_ast /nologo",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": [],
+            "group": "build"
         }
+ 
     ]
 }
