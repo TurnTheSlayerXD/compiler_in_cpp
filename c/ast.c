@@ -41,15 +41,20 @@ typedef struct _Expr {
     bool is_inside_brace;
 } Expr;
 
+typedef struct _FunCall {
+    AstNode args[10];
+    int count;
+    String_View name;
+} FunCall;
 
 typedef enum _NodeType {
     NONE,
     WORD,
     STATEMENT,
     EXPR,
+    FUN_CALL,
 
     START_BRACKET,
-
     START_FUN_CALL,
 } NodeType;
 
@@ -62,6 +67,8 @@ struct _AstNode {
         struct _Statement Statement;
         // contains seq of operators (math expression)
         struct _Expr Expr;
+
+        struct _FunCall FunCall;
 	} _;
 };
 
@@ -69,7 +76,7 @@ struct _AstNode {
 
 typedef struct _Queue {
     int size;
-    AstNode* nodes[20];
+    AstNode* nodes[30];
 } Queue;
 
 void push_queue(Queue *queue, AstNode *node) {
@@ -110,7 +117,7 @@ NodeType node_type_at(Queue *queue, int i) {
 }
 
 struct {
-    AstNode heap[20];
+    AstNode heap[50];
     int size;
 } __nodeHeap = {0};
 
@@ -149,6 +156,8 @@ EnumOp cast_token_to_enum_op(Token t) {
 AstNode* AstNode_new_Expr(Token t, Tag tag) {
     AstNode *p = AstNode_new(EXPR, tag);
     cast(p, Expr).op = cast_token_to_enum_op(t);
+    cast(p, Expr).lhs = NULL;
+    cast(p, Expr).rhs = NULL;
     return p; 
 }
 
@@ -204,36 +213,92 @@ typedef struct _AstPrintParams {
     const char* sep;
 } AstPrintParams;
 
-char* to_string_AstTree(AstPrintParams params, char* ptr, const char *end_ptr, AstNode *n, int ind) {
+typedef struct _AstPrintBuffer {
+    char *ptr; int size;
+} AstPrintBuffer;
+
+AstPrintBuffer* __print_buffer; 
+AstPrintParams __print_params; 
+
+void __realloc_print_buffer(char **ptr, int add_size) {
+    if (add_size < 0) {
+        assert(false && "Unexpected add_size");
+    }
+    if (add_size == 0) {
+        return;
+    }
+    if (*ptr + add_size + 1 >= __print_buffer->ptr + __print_buffer->size) {
+        size_t dif = *ptr - __print_buffer->ptr;
+        __print_buffer->ptr = realloc(__print_buffer->ptr, __print_buffer->size + add_size * 2 + 1);
+        __print_buffer->size += add_size * 2 + 1;
+        *ptr = __print_buffer->ptr + dif;
+    }
+
+    if (__print_buffer->size > 4000) {
+        assert(false);
+    }
+}
+
+void clear_AstPrintBuffer(AstPrintBuffer* buf) {
+    if (!buf) {
+        return;
+    }
+    free(buf->ptr);
+    buf->ptr = NULL;
+    buf->size = 0;
+}
+
+char *__to_string_AstTree(char* ptr, AstNode *n, int ind) {
     if (!n) {
-        for (int i = 0; i < MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr; }
-        
-        int ret = snprintf(ptr, MAX(end_ptr-ptr, 0), "%s,%s", "NULL", params.sep);
-        
+        __realloc_print_buffer(&ptr, ind);
+        for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr; }
+
+        int chars_to_be_written = snprintf(NULL, 0, "%s,%s", "NULL", __print_params.sep);
+        __realloc_print_buffer(&ptr, chars_to_be_written);
+        int ret = sprintf(ptr, "%s,%s", "NULL", __print_params.sep);
+
+        if (ret != chars_to_be_written) {
+            assert(false && "ret != chars_to_be_written");
+        }
         return ptr + ret;
     }
     switch (n->type) {
         case WORD: 
-            for (int i = 0; i < ind && MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr; }
+            __realloc_print_buffer(&ptr, ind);
+            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr; }
+            int chars_to_be_written = snprintf(NULL, 0, "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, __print_params.sep);
 
-            int ret = snprintf(ptr, MAX(end_ptr - ptr, 0), "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, params.sep); 
-        
+            __realloc_print_buffer(&ptr, chars_to_be_written);
+            int ret = sprintf(ptr, "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, __print_params.sep); 
+            if (ret != chars_to_be_written) {
+                assert(false && "ret != chars_to_be_written");
+            }
             return ptr + ret;
-       
+
         case EXPR: 
-            for (int i = 0; i < ind && MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr; }
+            __realloc_print_buffer(&ptr, ind);
+            for (int i = 0; i < ind ; ++i) { *ptr = ' '; ++ptr; }
+            
+            chars_to_be_written = snprintf(NULL, 0, "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), __print_params.sep);
+            __realloc_print_buffer(&ptr, chars_to_be_written);
+            ret = sprintf(ptr, "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), __print_params.sep); 
+            if (ret != chars_to_be_written) {
+                assert(false && ret != chars_to_be_written);
+            }
+
+            ptr = __to_string_AstTree(ptr + ret, cast(n, Expr).lhs, ind + __print_params.ind_step);
+            ptr = __to_string_AstTree(ptr, cast(n, Expr).rhs, ind + __print_params.ind_step);
+            
+            __realloc_print_buffer(&ptr, chars_to_be_written);
+            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr;}
         
-            int c = snprintf(ptr, MAX(end_ptr-ptr, 0), "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), params.sep); 
-        
-            ptr = to_string_AstTree(params, ptr + c, end_ptr, cast(n, Expr).lhs, ind + params.ind_step);
-        
-            ptr = to_string_AstTree(params, ptr, end_ptr, cast(n, Expr).rhs, ind + params.ind_step);
-        
-            for (int i = 0; i < ind && MAX(end_ptr-ptr-1, 0); ++i) { *ptr = ' '; ++ptr;}
-        
-            c = snprintf(ptr, MAX(end_ptr-ptr, 0), "}%s", params.sep); 
-        
-            return ptr + c;
+            chars_to_be_written = snprintf(NULL, 0, "}%s", __print_params.sep); 
+            __realloc_print_buffer(&ptr, chars_to_be_written);
+            ret = sprintf(ptr, "}%s", __print_params.sep); 
+            if (ret != chars_to_be_written) {
+                assert(false && ret != chars_to_be_written);
+            }
+            return ptr + ret;
         
         default:
             assert(false && "to_string_AstTree Unknown AstNode Type");
@@ -241,7 +306,25 @@ char* to_string_AstTree(AstPrintParams params, char* ptr, const char *end_ptr, A
     }
 }
 
+void to_string_AstTree(AstPrintParams params, AstPrintBuffer* buf, AstNode *n) {
+    if (!buf) {
+        assert(false && "AstPrintBuffer = NULL");
+    }
+    clear_AstPrintBuffer(buf);
+    __print_buffer = buf;
+
+    *__print_buffer = (AstPrintBuffer){ .ptr = malloc(10), .size = 10 };
+    __print_params = params;
+    __to_string_AstTree(__print_buffer->ptr, n, 0);
+}
+
 typedef bool (*Handler)(Queue *q, Token t, Tokenizer *tokenizer);
+
+AstNode* AstNode_newStartFunCall(String_View fun_name, Tag tag) {
+    AstNode *start_fun = AstNode_new(START_FUN_CALL, tag);
+    start_fun->name = fun_name;
+    return start_fun;
+}
 
 bool handle_word_token(Queue *q, Token t, Tokenizer *tokenizer) {
     if (t.type != T_CUSTOM_WORD) {
@@ -251,7 +334,7 @@ bool handle_word_token(Queue *q, Token t, Tokenizer *tokenizer) {
     Tag before_pos = tok_get_cur_pos(tokenizer);
     Token *next_tok = tok_next_token(tokenizer);
     if (next_tok != NULL && next_tok->type == T_L_BR) {
-        push_queue(q, AstNode_new(START_FUN_CALL, next_tok->tag));
+        push_queue(q, AstNode_newStartFunCall(t.text, t.tag));
         return true;
     }
     else {
@@ -279,6 +362,8 @@ bool handle_word_token(Queue *q, Token t, Tokenizer *tokenizer) {
     return true;
 }
 
+
+
 bool try_insert_new_expr_into_existing_expr(Queue *q, AstNode *new_expr) {
     if (!isinstance(new_expr, EXPR)) {
         assert(false && "Expected AstNode of type EXPR in ");
@@ -296,6 +381,21 @@ bool try_insert_new_expr_into_existing_expr(Queue *q, AstNode *new_expr) {
                 parent = prev_expr;
                 prev_expr = cast(prev_expr, Expr).rhs;
             }
+
+            if (parent == prev_expr) {
+                if (node_cmp_expr(new_expr, parent) > 0) {
+                    cast(new_expr, Expr).lhs = cast(prev_expr, Expr).rhs;
+                    cast(parent, Expr).rhs = new_expr;
+                }
+                else {
+                    pop_queue(q);
+                    cast(new_expr, Expr).lhs = parent;
+                    push_queue(q, new_expr);
+                }
+
+                return true;
+            }
+
             if (!cast(prev_expr, Expr).rhs) {
                 assert(false && "No place for op node insertion");
             }
@@ -331,10 +431,8 @@ bool handle_op_token(Queue *q, Token t, Tokenizer *tokenizer) {
         return true;  
     }
     if (node_type_at(q, -1) == EXPR) {
-        bool did_insert = try_insert_new_expr_into_existing_expr(q, AstNode_new_Expr(t, t.tag));
-        if (did_insert) {
-            return true;
-        }
+        try_insert_new_expr_into_existing_expr(q, AstNode_new_Expr(t, t.tag));
+        return true;
     }
 
     if (node_type_at(q, -1) == START_BRACKET) {
@@ -361,7 +459,11 @@ bool handle_brace_token(Queue *q, Token t, Tokenizer *tokenizer) {
         (node_type_at(q, -1) == EXPR || node_type_at(q, -1) == WORD)) {
         // Pop node, which can be either WORD or EXPR
         AstNode *inside_brace_node = pop_queue(q);
-        cast(inside_brace_node, Expr).is_inside_brace = true;
+            
+
+        if (isinstance(inside_brace_node, EXPR)) {
+            cast(inside_brace_node, Expr).is_inside_brace = true;
+        }
         // Pop START_BRACKET node
         pop_queue(q);
 
@@ -384,12 +486,70 @@ bool handle_brace_token(Queue *q, Token t, Tokenizer *tokenizer) {
 
         return true;
     }
-    
-    if (t.type == T_R_BR && node_type_at(q, -2) == START_FUN_CALL) { 
-        assert(false && "TODO");
-    }
-    
     return false;
 }
 
+void push_fun_arg(AstNode *fun, AstNode *arg) {
+    if (!isinstance(fun, START_FUN_CALL)) {
+        assert(false && "Expected fun node at push_fun_arg");
+    }
 
+    if (cast(fun, FunCall).count >= COUNT_OF(cast(fun, FunCall).args)) {
+        assert(false && "Exceeded limit of fun->args COUNT");
+    }
+
+    cast(fun, FunCall).args[cast(fun, FunCall).count] = arg;
+    cast(fun, FunCall).count += 1;
+}
+
+
+bool handle_comma_token(Queue *q, Token t, Tokenizer *tokenizer) {
+    switch (t.type) {
+        case T_COMMA: break;
+        default: return false; 
+    }
+
+    if (node_type_at(q, -2) == START_FUN_CALL && 
+        (node_type_at(q, -1) == EXPR || node_type_at(q, -1) == WORD)) {
+
+        AstNode *fun = node_at(q, -2);
+        AstNode *arg = pop_queue(q);
+            
+        push_fun_arg(fun, arg);
+
+        return true;
+    }
+
+    return false;
+}
+
+AstNode* AstNode_newFunCall(AstNode *start_fun) {
+    if (!isinstance(start_fun, START_FUN_CALL)) {
+        assert(false && "Expected START_FUN_CALL in call AstNode_newFunCall");
+    }
+    start_fun->type = FUN_CALL;
+    return start_fun;  
+}
+
+bool handle_fun_call_end(Queue *q, Token t, Tokenizer *tokenizer) {
+    switch (t.type) {
+        case T_R_BR: break;
+        default: return false;
+    }
+
+    if (node_type_at(q, -2) == START_FUN_CALL && 
+        (node_type_at(q, -1) == EXPR || node_type_at(q, -1) == WORD)) {
+            
+            
+        return true;
+    }
+
+    if (node_type_at(q, -1) == START_FUN_CALL) {
+        AstNode *fun = AstNode_newFunCall(node_at(q, -1));
+
+        while ()
+    }
+   
+    return false;
+
+}

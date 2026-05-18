@@ -6,7 +6,7 @@
 
 int main(void) {
 	
-    const char *program_text = "g * (a + b) / (k - f) + m";
+    const char *program_text = "a + x * c / m + d - e / t * y + r / k";
 
 	Tokenizer tokenizer = Tokenizer_new((String_View){.ptr = program_text, .len = strlen(program_text)});
 
@@ -33,18 +33,19 @@ int main(void) {
         }
 	}
 
-    char buf[300] = {0};
+
+    AstPrintBuffer buf = {0};
     to_string_AstTree(
-        (AstPrintParams){.ind_step = 1, .sep = "\n\r"}, 
-        buf,
-        buf + COUNT_OF(buf),
-        node_at(&q, -1), 
-        0
+        (AstPrintParams){.ind_step = 0, .sep = ""}, 
+        &buf,
+        node_at(&q, -1)
     );
 
     printf("_____________________________________________\n");
-    printf("%s", buf);
-    printf("\n_____________________________________________\n");
+    printf("%s\n", buf.ptr);
+    printf("_____________________________________________\n");
+
+    clear_AstPrintBuffer(&buf);
 
     clear_Token_array(&tokenizer.tokens);
     return 0;

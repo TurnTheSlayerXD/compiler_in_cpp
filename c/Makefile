@@ -17,13 +17,13 @@ prepr:
 TOKEN_TEST_SRC=tests/test_tokenizer.c
 OUT_TOKEN_TEST=tests/out/test_tokenizer.exe
 
-run_test: $(OUT_TOKEN_TEST) 
+run_test: $(OUT_TOKEN_TEST) $(OUT_AST_TEST)
 
 test_valgrind: 
 	valgrind ./tests/out/test_tokenizer -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment --leak-check=full -s
 
 $(OUT_TOKEN_TEST): $(TOKEN_TEST) $(SRC_LIST)
-	$(CC) -o $(OUT_TOKEN_TEST) $(FLAGS) $(TOKEN_TEST) && start $(OUT_TOKEN_TEST)
+	$(CC) -o $(OUT_TOKEN_TEST) $(FLAGS) $(TOKEN_TEST)
 
 AST_TEST_SRC=./tests/test_arithmetic_ast.c
 OUT_AST_TEST=./tests/out/test_arithmetic_ast.exe 
