@@ -6,7 +6,7 @@
 
 int main(void) {
 	
-    const char *program_text = "a + x * c / m + d - e / t * y + r / k";
+    const char *program_text = "aboba * (ptr + x)() + (asd)() + x";
 
 	Tokenizer tokenizer = Tokenizer_new((String_View){.ptr = program_text, .len = strlen(program_text)});
 
@@ -14,6 +14,10 @@ int main(void) {
         handle_word_token, 
         handle_op_token,
         handle_brace_token,
+        handle_comma_token,
+        
+        handle_fun_call_start,
+        handle_fun_call_end,
     };
 
     Queue q = {0};
@@ -36,7 +40,7 @@ int main(void) {
 
     AstPrintBuffer buf = {0};
     to_string_AstTree(
-        (AstPrintParams){.ind_step = 0, .sep = ""}, 
+        (AstPrintParams){.ind_step = 3, .sep = "\n\r"}, 
         &buf,
         node_at(&q, -1)
     );

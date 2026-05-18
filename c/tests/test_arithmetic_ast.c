@@ -82,7 +82,7 @@ int main(void) {
         "2",
         "g * (a + b) / (k - f) + c * d * (x + z + (k - koaf))",
 
-        "EXPR [+]: {EXPR [*]: {WORD [g],EXPR [/]: {EXPR [+]: {WORD [a],WORD [b],}EXPR [-]: {WORD [k],WORD [f],}}}EXPR [*]: {EXPR [*]: {WORD [c],WORD [d],}EXPR [+]: {EXPR [+]: {WORD [x],WORD [z],}EXPR [-]: {WORD [k],WORD [koaf],}}}}",
+        "EXPR [+]: {EXPR [/]: {EXPR [*]: {WORD [g],EXPR [+]: {WORD [a],WORD [b],}}EXPR [-]: {WORD [k],WORD [f],}}EXPR [*]: {EXPR [*]: {WORD [c],WORD [d],}EXPR [+]: {EXPR [+]: {WORD [x],WORD [z],}EXPR [-]: {WORD [k],WORD [koaf],}}}}",
 
         true
     );

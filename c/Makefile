@@ -7,7 +7,7 @@ SRC_LIST=tokenizer.c ast.c token_types.h ./includes/macros.h ./includes/strdup.h
 
 all: $(OUT)
  
-$(OUT): $(SRC_LIST) 
+$(OUT): $(SRC_LIST) main.c
 	$(CC) -o $(OUT) $(FLAGS) main.c 
 
 
