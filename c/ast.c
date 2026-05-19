@@ -17,6 +17,17 @@ typedef enum _EnumOp {
 	#undef X
 } EnumOp;
 
+
+#define STATE_TO_H \
+	X(INSIDE_FUNC, ((Handler[]){ h_word_token, h_op_token, h_brace_token, h_comma_token, h_call_start, h_call_end }))
+
+typedef enum _ParserState {
+    #define X(name, value) name,
+        STATE_TO_H
+    #undef X
+} ParserState;
+
+
 const char* to_string_EnumOp(EnumOp op) {
     switch(op) {
         #define X(name, value) case name: return value;
@@ -345,11 +356,11 @@ void to_string_AstTree(AstPrintParams params, AstPrintBuffer* buf, AstNode *n) {
     __to_string_AstTree(__print_buffer->ptr, n, 0);
 }
 
-typedef bool (*Handler)(Queue *q, Token t, Tokenizer *tokenizer);
+typedef bool (*Handler)(ParserState *e, Queue *q, Token t );
 
 
-bool handle_word_token(Queue *q, Token t, Tokenizer *tokenizer) {
-    (void) tokenizer;
+bool h_word_token(ParserState *e, Queue *q, Token t ) {
+    
 
     if (t.type != T_CUSTOM_WORD) {
         return false;
@@ -376,8 +387,8 @@ bool handle_word_token(Queue *q, Token t, Tokenizer *tokenizer) {
     return true;
 }
 
-bool handle_op_token(Queue *q, Token t, Tokenizer *tokenizer) {
-    (void) tokenizer;
+bool h_op_token(ParserState *e, Queue *q, Token t ) {
+    
     if (!is_op_token(t)) {
         return false;
     }
@@ -451,8 +462,8 @@ bool is_leaf_type(NodeType n) {
     return n == CALL_EXPR || n == WORD || n == BRACE_EXPR;
 }
 
-bool handle_brace_token(Queue *q, Token t, Tokenizer *tokenizer) {
-    (void) tokenizer;
+bool h_brace_token(ParserState *e, Queue *q, Token t ) {
+    
 
     switch (t.type) {
         case T_L_BR: case T_R_BR: break;
@@ -523,8 +534,8 @@ void push_fun_arg(AstNode *fun, AstNode *arg) {
 }
 
 
-bool handle_comma_token(Queue *q, Token t, Tokenizer *tokenizer) {
-    (void) tokenizer;
+bool h_comma_token(ParserState *e, Queue *q, Token t ) {
+    
     switch (t.type) {
         case T_COMMA: break;
         default: return false; 
@@ -548,8 +559,8 @@ AstNode* AstNode_newFunCall(AstNode *start_fun) {
     return start_fun;  
 }
 
-bool handle_fun_call_start(Queue *q, Token t, Tokenizer *tokenizer) {
-    (void) tokenizer;
+bool h_call_start(ParserState *e, Queue *q, Token t ) {
+    
 
     switch (t.type) {
         case T_L_BR: break;
@@ -588,8 +599,8 @@ bool handle_fun_call_start(Queue *q, Token t, Tokenizer *tokenizer) {
     return false;
 }
 
-bool handle_fun_call_end(Queue *q, Token t, Tokenizer *tokenizer) {
-    (void) tokenizer;
+bool h_call_end(ParserState *e, Queue *q, Token t) {
+    
     
     switch (t.type) {
         case T_R_BR: break;
