@@ -6,7 +6,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <strdup.h>
 #include <string_view.h>
 
 #include "token_types.h"

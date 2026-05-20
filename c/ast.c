@@ -4,96 +4,8 @@
 #include <stdarg.h>
 #include <macros.h>
 
-#define PREP_ENUM_OP \
-	X(OP_PLUS, "+") \
-	X(OP_MINUS, "-") \
-	X(OP_MUL, "*") \
-	X(OP_DIV, "/") \
-	X(OP_PERCENT, "%")
+#include "ast_types.h"
 
-typedef enum _EnumOp {
-    #define X(name, value) name,
-		PREP_ENUM_OP
-	#undef X
-} EnumOp;
-
-
-#define STATE_TO_H \
-	X(INSIDE_FUNC, ((Handler[]){ h_word_token, h_op_token, h_brace_token, h_comma_token, h_call_start, h_call_end }))
-
-typedef enum _ParserState {
-    #define X(name, value) name,
-        STATE_TO_H
-    #undef X
-} ParserState;
-
-
-const char* to_string_EnumOp(EnumOp op) {
-    switch(op) {
-        #define X(name, value) case name: return value;
-            PREP_ENUM_OP
-        #undef X
-        default: assert(false && "UNREACHABLE"); return "";
-    }
-}
-
-typedef struct _AstNode AstNode;
-
-typedef struct _Word {
-    String_View text;
-} Word;
-
-typedef struct _Statement {
-    AstNode* expr;
-} Statement;
-
-typedef struct _Expr {
-    EnumOp op;
-    AstNode *lhs;
-    AstNode *rhs;
-} Expr;
-
-typedef struct _Call {
-    AstNode* callable;
-
-    AstNode* args[10];
-    int count;
-} Call;
-
-typedef enum _NodeType {
-    NONE,
-    WORD,
-    STATEMENT,
-
-    EXPR,
-    BRACE_EXPR,
-    CALL_EXPR,
-
-    START_BRACKET,
-    START_CALL,
-
-} NodeType;
-
-struct _AstNode {
-    Tag tag;
-    NodeType type;
-	union {
-        struct _Word Word;
-        // contains ref to expression, ends with semicolon
-        struct _Statement Statement;
-        // contains seq of operators (math expression)
-        struct _Expr Expr;
-
-        struct _Call Call;
-	} _;
-};
-
-#define cast(ptr, type) ((ptr)->_.type)
-
-typedef struct _Queue {
-    int size;
-    AstNode* nodes[30];
-} Queue;
 
 void push_queue(Queue *queue, AstNode *node) {
     if (queue->size >= COUNT_OF(queue->nodes)) {
@@ -220,152 +132,10 @@ bool is_operand(AstNode *n) {
 }
 
 
-typedef struct _AstPrintParams {
-    int ind_step;
-    const char* sep;
-} AstPrintParams;
 
-typedef struct _AstPrintBuffer {
-    char *ptr; int size;
-} AstPrintBuffer;
-
-AstPrintBuffer* __print_buffer; 
-AstPrintParams __print_params; 
-
-void __realloc_print_buffer(char **ptr, int add_size) {
-    if (add_size < 0) {
-        assert(false && "Unexpected add_size");
-    }
-    if (add_size == 0) {
-        return;
-    }
-    if (*ptr + add_size + 1 >= __print_buffer->ptr + __print_buffer->size) {
-        size_t dif = *ptr - __print_buffer->ptr;
-        __print_buffer->ptr = realloc(__print_buffer->ptr, __print_buffer->size + add_size * 2 + 1);
-        __print_buffer->size += add_size * 2 + 1;
-        *ptr = __print_buffer->ptr + dif;
-    }
-
-    if (__print_buffer->size > 4000) {
-        assert(false);
-    }
-}
-
-void clear_AstPrintBuffer(AstPrintBuffer* buf) {
-    if (!buf) {
-        return;
-    }
-    free(buf->ptr);
-    buf->ptr = NULL;
-    buf->size = 0;
-}
-
-char* __write_with_indentation(char *ptr, int ind, const char *fmt, ...) {
-    __realloc_print_buffer(&ptr, ind);
-    for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr; }
-
-    va_list args1;
-
-    va_start(args1, fmt);
-    
-    va_list args2;
-    va_copy(args2, args1);
-
-    int chars_to_be_written = vsnprintf(NULL, 0, fmt, args1);
-    __realloc_print_buffer(&ptr, chars_to_be_written);
-
-    va_end(args1);
-
-    ptr += vsnprintf(ptr, chars_to_be_written + 1, fmt, args2);
-
-    va_end(args2);
-
-    return ptr;
-}
-
-char *__to_string_AstTree(char* ptr, AstNode *n, int ind) {
-    if (!n) {
-        __realloc_print_buffer(&ptr, ind);
-        for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr; }
-
-        int chars_to_be_written = snprintf(NULL, 0, "%s,%s", "NULL", __print_params.sep);
-        __realloc_print_buffer(&ptr, chars_to_be_written);
-        ptr += sprintf(ptr, "%s,%s", "NULL", __print_params.sep);
-        return ptr;
-    }
-    switch (n->type) {
-        case WORD: 
-            __realloc_print_buffer(&ptr, ind);
-            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr; }
-            int chars_to_be_written = snprintf(NULL, 0, "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, __print_params.sep);
-
-            __realloc_print_buffer(&ptr, chars_to_be_written);
-            ptr += sprintf(ptr, "%s [%.*s],%s", "WORD", cast(n, Word).text.len, cast(n, Word).text.ptr, __print_params.sep); 
-            return ptr;
-
-        case EXPR: case BRACE_EXPR: 
-            __realloc_print_buffer(&ptr, ind);
-            for (int i = 0; i < ind ; ++i) { *ptr = ' '; ++ptr; }
-            
-            chars_to_be_written = snprintf(NULL, 0, "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), __print_params.sep);
-            __realloc_print_buffer(&ptr, chars_to_be_written);
-            ptr += sprintf(ptr, "%s [%s]: {%s", "EXPR", to_string_EnumOp(cast(n, Expr).op), __print_params.sep); 
-
-            ptr = __to_string_AstTree(ptr, cast(n, Expr).lhs, ind + __print_params.ind_step);
-            ptr = __to_string_AstTree(ptr, cast(n, Expr).rhs, ind + __print_params.ind_step);
-            
-            __realloc_print_buffer(&ptr, chars_to_be_written);
-            for (int i = 0; i < ind; ++i) { *ptr = ' '; ++ptr;}
-        
-            chars_to_be_written = snprintf(NULL, 0, "}%s", __print_params.sep); 
-            __realloc_print_buffer(&ptr, chars_to_be_written);
-            ptr += sprintf(ptr, "}%s", __print_params.sep); 
-            return ptr;
-        
-        case CALL_EXPR: 
-            ptr = __write_with_indentation(ptr, ind, "%s: {%s", "Call expr", __print_params.sep);
-            ptr = __write_with_indentation(ptr, ind + __print_params.ind_step, "%s: {%s", "callable",  __print_params.sep);
-            ptr = __to_string_AstTree(ptr, cast(n, Call).callable, ind + 2 * __print_params.ind_step);
-            ptr = __write_with_indentation(ptr, ind + __print_params.ind_step, "},%s",  __print_params.sep);
-
-            ptr = __write_with_indentation(ptr, ind + __print_params.ind_step, "%s: [%s", "arguments", __print_params.sep);
-
-            for (int i = 0; i < cast(n, Call).count; ++i) {
-                ptr = __to_string_AstTree(ptr, cast(n, Call).args[i], ind + 2 * __print_params.ind_step);
-            }
-
-            ptr = __write_with_indentation(ptr, ind + __print_params.ind_step, "],%s", __print_params.sep);
-
-            return ptr;
-
-        default:
-            assert(false && "to_string_AstTree Unknown AstNode Type");
-            return NULL;
-    }
-}
-
-void to_string_AstTree(AstPrintParams params, AstPrintBuffer* buf, AstNode *n) {
-    if (!buf) {
-        assert(false && "AstPrintBuffer = NULL");
-    }
-    clear_AstPrintBuffer(buf);
-    __print_buffer = buf;
-
-    *__print_buffer = (AstPrintBuffer){ .ptr = malloc(10), .size = 10 };
-    __print_params = params;
-    __to_string_AstTree(__print_buffer->ptr, n, 0);
-}
-
-typedef bool (*Handler)(ParserState *e, Queue *q, Token t );
 
 
 bool h_word_token(ParserState *e, Queue *q, Token t ) {
-    
-
-    if (t.type != T_CUSTOM_WORD) {
-        return false;
-    }
-
     if (node_type_at(q, -1) == EXPR) {
         AstNode *expr = node_at(q, -1);
         while (cast(expr, Expr).rhs) {
@@ -462,34 +232,30 @@ bool is_leaf_type(NodeType n) {
     return n == CALL_EXPR || n == WORD || n == BRACE_EXPR;
 }
 
-bool h_brace_token(ParserState *e, Queue *q, Token t ) {
-    
-
-    switch (t.type) {
-        case T_L_BR: case T_R_BR: break;
-        default: return false;
+bool h_open_brace_token(ParserState *e, Queue *q, Token t ) {
+    if (is_leaf_type(node_type_at(q, -1))) {
+        return false;
     }
-
-    if (t.type == T_L_BR) {
-        
-        if (is_leaf_type(node_type_at(q, -1))) {
+    
+    if (node_type_at(q, -1) == EXPR) {
+        AstNode *expr = node_at(q, -1);
+        while (cast(expr, Expr).rhs && isinstance(cast(expr, Expr).rhs, EXPR)) {
+            expr = cast(expr, Expr).rhs;
+        }
+        if (cast(expr, Expr).rhs) {
             return false;
         }
-        
-        if (node_type_at(q, -1) == EXPR) {
-            AstNode *expr = node_at(q, -1);
-            while (cast(expr, Expr).rhs && isinstance(cast(expr, Expr).rhs, EXPR)) {
-                expr = cast(expr, Expr).rhs;
-            }
-            if (cast(expr, Expr).rhs) {
-                return false;
-            }
-        }
-
-        push_queue(q, AstNode_new(START_BRACKET, t.tag));
-        return true;
     }
-    if (t.type == T_R_BR && node_type_at(q, -2) == START_BRACKET) {
+
+    push_queue(q, AstNode_new(START_BRACKET, t.tag));
+    return true;
+
+    return false;
+}
+
+bool h_close_brace_token(ParserState *e, Queue *q, Token t) {
+    (void) t;
+    if (node_type_at(q, -2) == START_BRACKET) {
         // Pop node, which can be either WORD or EXPR
         AstNode *inside_brace_node = pop_queue(q);
 
@@ -517,7 +283,6 @@ bool h_brace_token(ParserState *e, Queue *q, Token t ) {
 
         return true;
     }
-    return false;
 }
 
 void push_fun_arg(AstNode *fun, AstNode *arg) {

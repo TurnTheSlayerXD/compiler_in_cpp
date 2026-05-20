@@ -86,6 +86,8 @@ enum EnumToken {
 		ALL_TOKENS
 	#undef X
 
+	T_NONE,
+
 };
 
 
@@ -96,7 +98,7 @@ static const char* str_EnumToken(enum EnumToken t) {
 		ALL_TOKENS
 	#undef X
 
-	default: assert(false && "Unknown token: [%d]");
+	default: assert(false && "Unknown token: [%d]"); return NULL;
 	}
 }
 
