@@ -199,15 +199,19 @@ def rule_with_name(constructor, name, nodetype, *args):
 
 def main():
 
-    tokenizer = Tokenizer("")
+    tokenizer = Tokenizer("a + b")
 
-    ruleset = RuleSet()
-
-    ruleset.add_rule(
-        rule_with_name(WordRule, "+", NodeType.PLUS, TokenType.T_PLUS)
-    )
+    while not tokenizer.eof():
+        tok = tokenizer.next_tok()
+        print(tok.type)
     
-    print(ruleset.rules)
+    # ruleset = RuleSet()
+
+    # ruleset.add_rule(
+    #     rule_with_name(WordRule, "+", NodeType.PLUS, TokenType.T_PLUS)
+    # )
+    
+    # print(ruleset.rules)
     
     pass
 
