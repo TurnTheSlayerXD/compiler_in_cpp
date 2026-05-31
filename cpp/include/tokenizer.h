@@ -139,6 +139,12 @@ public:
         _errBit{false},
         _state{State::START} {}
 
+    Tokenizer(const Tokenizer &o) = delete;
+    Tokenizer operator = (const Tokenizer &o) = delete;
+
+    Tokenizer(Tokenizer &&o) = default;
+
+
     std::string_view cur_text() {
         return slice(_srcText, _cur.pos, _srcText.size());
     }
@@ -195,7 +201,7 @@ public:
 
 
     Token add_token(TokenType type, Cursor curOfToken, std::string_view text) {
-        auto newToken = (Token){ 
+        auto newToken = Token { 
             .type = type ,
             .cur = curOfToken ,
             .text = text ,
@@ -349,4 +355,4 @@ public:
     }
 };
 
-#endif TOKENIZER_H
+#endif
