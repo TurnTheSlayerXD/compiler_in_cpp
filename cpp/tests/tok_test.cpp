@@ -1,9 +1,5 @@
 #include <iostream>
-#include "tokenizer.h"
-#include "tokenizer.h"
-
-
-
+#include <tokenizer.h>
 
 int main() {
 

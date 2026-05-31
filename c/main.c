@@ -1,13 +1,35 @@
 #include "ast.c"
 
 typedef struct _Parser {
-    ParserState state;
+    ParserState* stack;
+    size_t size;
+    size_t cap;
 } Parser;
 
+ParserState cur_state(Parser *p) {
+    if (p->size == 0) {
+        assert(false && "Failed getting current state of parser");
+    }
 
-Parser Parser_new(void) {
+    return p->stack[i];
+}
 
-    return (Parser){0};
+void push_state(Parser *p, ParserState state) {
+    if (p->size >= p->cap) {
+        p->stack = realloc(p->stack, p->cap * 2 + 1);
+        p->cap = p->cap * 2 + 1;
+    }
+    p->stack[p->size] = state;
+    p->size += 1;
+}
+
+ParserState pop_state(Parser *p, ParserState state) {
+    if (p->size == 0) {
+        assert(false && "Failed popping state of parser");
+        return;
+    }
+    p->size -= 1;
+    return p->stack[p->size];
 }
 
 
@@ -25,8 +47,8 @@ AstNode* parse(Parser *p, Tokenizer *tokenizer) {
                 for (i = 0; i < COUNT_OF(value); ++i) \
                 { \
                     Handler h = h_arr[i]; \
-                    if (h.input == T_NONE && h.check(*t) && h.handler(&p->state, &q, *t)) break; \
-                    if (h.input == t->type && h.handler(&p->state, &q, *t)) break; \
+                    if (h.input == T_NONE && h.check(*t) && h.handler(&q, *t)) break; \
+                    if (h.input == t->type && h.handler(&q, *t)) break; \
                 } \
                 handled = i < COUNT_OF(value); \
                 if (!handled) assert(false && "couldn't handle state"); \
@@ -39,9 +61,6 @@ AstNode* parse(Parser *p, Tokenizer *tokenizer) {
 
     return NULL;
 }
-
-
-
 
 
 int main(void) {

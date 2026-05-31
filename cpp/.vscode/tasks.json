@@ -1,0 +1,13 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "nmake all /nologo",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": [],
+            "group": "build"
+        },
+    ]
+}

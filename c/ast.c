@@ -6,7 +6,6 @@
 
 #include "ast_types.h"
 
-
 void push_queue(Queue *queue, AstNode *node) {
     if (queue->size >= COUNT_OF(queue->nodes)) {
         assert(false && "Exceeded limit count of queue");
@@ -135,7 +134,7 @@ bool is_operand(AstNode *n) {
 
 
 
-bool h_word_token(ParserState *e, Queue *q, Token t ) {
+bool h_word_token( Queue *q, Token t ) {
     if (node_type_at(q, -1) == EXPR) {
         AstNode *expr = node_at(q, -1);
         while (cast(expr, Expr).rhs) {
@@ -157,7 +156,7 @@ bool h_word_token(ParserState *e, Queue *q, Token t ) {
     return true;
 }
 
-bool h_op_token(ParserState *e, Queue *q, Token t ) {
+bool h_op_token( Queue *q, Token t ) {
     
     if (!is_op_token(t)) {
         return false;
@@ -232,7 +231,7 @@ bool is_leaf_type(NodeType n) {
     return n == CALL_EXPR || n == WORD || n == BRACE_EXPR;
 }
 
-bool h_open_brace_token(ParserState *e, Queue *q, Token t ) {
+bool h_open_brace_token( Queue *q, Token t ) {
     if (is_leaf_type(node_type_at(q, -1))) {
         return false;
     }
@@ -253,7 +252,7 @@ bool h_open_brace_token(ParserState *e, Queue *q, Token t ) {
     return false;
 }
 
-bool h_close_brace_token(ParserState *e, Queue *q, Token t) {
+bool h_close_brace_token( Queue *q, Token t) {
     (void) t;
     if (node_type_at(q, -2) == START_BRACKET) {
         // Pop node, which can be either WORD or EXPR
@@ -299,7 +298,7 @@ void push_fun_arg(AstNode *fun, AstNode *arg) {
 }
 
 
-bool h_comma_token(ParserState *e, Queue *q, Token t ) {
+bool h_comma_token( Queue *q, Token t ) {
     
     switch (t.type) {
         case T_COMMA: break;
@@ -324,7 +323,7 @@ AstNode* AstNode_newFunCall(AstNode *start_fun) {
     return start_fun;  
 }
 
-bool h_call_start(ParserState *e, Queue *q, Token t ) {
+bool h_call_start( Queue *q, Token t ) {
     
 
     switch (t.type) {
@@ -364,7 +363,7 @@ bool h_call_start(ParserState *e, Queue *q, Token t ) {
     return false;
 }
 
-bool h_call_end(ParserState *e, Queue *q, Token t) {
+bool h_call_end( Queue *q, Token t) {
     
     
     switch (t.type) {

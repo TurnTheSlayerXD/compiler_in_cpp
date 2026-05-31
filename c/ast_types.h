@@ -75,9 +75,6 @@ typedef enum _NodeType {
     BRACE_EXPR,
     CALL_EXPR,
 
-    START_BRACKET,
-    START_CALL,
-
 } NodeType;
 
 struct _AstNode {
