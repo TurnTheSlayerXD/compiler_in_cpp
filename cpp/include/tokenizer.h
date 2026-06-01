@@ -102,6 +102,10 @@ bool starts_with(std::string_view text, std::string_view pat) {
 }
 
 
+struct TokPos {
+    size_t index;
+};
+
 
 class Tokenizer {
 
@@ -144,6 +148,13 @@ public:
 
     Tokenizer(Tokenizer &&o) = default;
 
+    TokPos get_pos() {
+        return TokPos{ .index = _tokIndex };
+    }
+
+    void reset_pos(TokPos p) {
+        _tokIndex = p.index;
+    }
 
     std::string_view cur_text() {
         return slice(_srcText, _cur.pos, _srcText.size());
@@ -353,6 +364,8 @@ public:
             iter();
         }
     }
+
+    
 };
 
 #endif
