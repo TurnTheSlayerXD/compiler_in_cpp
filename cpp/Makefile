@@ -3,7 +3,10 @@ FLAGS=-std=c++23 -Wall -Wextra -Wpedantic -ggdb
 SRC=main.cpp
 OUT=out.exe
 
-$(OUT): $(SRC)
+INCLUDE=\
+./include/tokenizer.h
+
+$(OUT): $(SRC) $(INCLUDE)
 	$(CC) -o $(OUT) $(FLAGS) -I./include $(SRC)
 
 all: $(OUT)

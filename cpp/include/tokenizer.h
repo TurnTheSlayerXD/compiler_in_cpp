@@ -18,7 +18,9 @@
     X("(", L_BR) \
     X(")", R_BR) \
     X(";", SEMICOLON) \
-    X(".", DOT)
+    X(".", DOT) \
+    X(",", COMMA)
+
     
 enum class TokenType {
     PLUS,
@@ -34,6 +36,7 @@ enum class TokenType {
     NUM_FLOAT,
     SEMICOLON,
     DOT,
+    COMMA,
 };
 
 std::string_view to_string(TokenType t) {
@@ -49,6 +52,7 @@ std::string_view to_string(TokenType t) {
         case TokenType::NUM_FLOAT : return "[num FLOAT]";
         case TokenType::CHAR : return "[char]";
         case TokenType::STRING : return "[string]";
+        case TokenType::COMMA : return "[,]";
         default: assert(false && "UNREACHABLE"); return "";
     }
 }
@@ -73,7 +77,6 @@ struct Token {
     Cursor           cur;
     std::string_view text;
     size_t           tokIndex;
-
 };
 
 template <>

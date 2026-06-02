@@ -1,6 +1,14 @@
 
+auto x() {
+
+}
+
+auto fun() {
+    return x;
+}
 
 int main() {
 
-    float x = 1e-01;
+    
+    (fun())();
 }
