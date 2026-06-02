@@ -4,12 +4,12 @@ SRC=main.cpp
 OUT=out.exe
 
 $(OUT): $(SRC)
-	$(CC) -o $(OUT) $(SRC) $(FLAGS) -I./include
+	$(CC) -o $(OUT) $(FLAGS) -I./include $(SRC)
 
 all: $(OUT)
 
 prepr: 
-	$(CC) -o main.txt -E $(FLAGS) main.cpp
+	$(CC) -o main.txt -E $(FLAGS) -I./include $(SRC)
 
 
 build_test:
