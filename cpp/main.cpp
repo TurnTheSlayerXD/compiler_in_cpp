@@ -1,521 +1,11 @@
 #include <iostream>
-#include <tokenizer.h>
 #include <array>
 #include <unordered_set>
 
-template <class T>
-struct Destruct {
-    T _cbk;
-    Destruct(T cbk): _cbk{cbk} { }
-    ~Destruct() {
-        _cbk();
-    }
-};
-
-class Expr;
-class Term;
-
-enum class NodeType {
-    Op,
-    Op_Un,
-    Op_Brace,
-    Op_Call,
-
-    Op_Call_Brace,
-    Op_Call_Brace_Seq,
-
-    Op_Comma,
-    Op_Comma_Seq,
-
-    Leaf,
-};
-std::string_view to_string(NodeType tp) {
-    using enum NodeType;
-    switch (tp) {
-        case Op: return "Op";
-        case Op_Un: return "Unar Op";
-        case Op_Brace: return "Brace Op";
-        case Op_Call: return "Call op";
-        case Leaf: return "Leaf";
-        case Op_Comma: return "Comma op";
-        case Op_Comma_Seq: return "Comma seq";
-        case Op_Call_Brace: return "Call braces";
-        case Op_Call_Brace_Seq: return "Seq Call braces";
-        default: assert(false && "Unexpected"); return "";
-    }
-}
-
-template <>
-struct std::formatter<NodeType> : std::formatter<std::string> {
-  auto format(NodeType type, format_context& ctx) const {
-    return formatter<string>::format(
-      std::format("{}", to_string(type)), ctx);
-  }
-};
-
-
-struct NodePrintOpts {
-    size_t indentStep = 4;
-
-} po;
-
-struct Node {
-    
-
-    std::vector<Node*> children;
-    NodeType _type;
-    Token relatedToken;
-
-    Node(NodeType type): _type{type} {}
-    Node(NodeType type, Token relatedToken): _type{type}, relatedToken{relatedToken} {}
-    
-    ~Node() {
-        for (auto child: children) {
-            delete child;
-        }
-    }
-
-    std::string_view to_string() {
-        return ::to_string(_type);
-    }
-
-    std::string get_str_repr() {
-        std::string buf;
-        _print(0, this, buf);
-        return buf;
-    }
-
-    static void set_indent(size_t count, std::string&buf) {
-        for (size_t i = 0; i < count; ++i) {
-            buf.push_back(' ');
-        }
-    }
-
-    static void _print(size_t indent, Node *v, std::string &buf) {
-        set_indent(indent, buf);
-        buf += v->to_string();
-        if (v->children.size() > 0) {
-            buf += ": {";
-            buf += "\n\r";
-            for (auto child: v->children) {
-                _print(indent + po.indentStep, child, buf);
-            }
-            set_indent(indent, buf);
-            buf += "},\n\r";
-        }
-        else {
-            buf += ",\n\r"; 
-        }
-    }
-
-};
-
-struct NamedStorage {    
-    struct ExprWithName {
-        std::string_view name;
-        Expr *expr;
-    };
-
-    std::vector<ExprWithName> _items;
-    void set_name(Expr* expr, std::string_view name) {
-        auto pos = std::find_if(_items.begin(), _items.end(), [&name](const auto &arg){ return arg.name == name; });
-        assert(pos == _items.end());
-        _items.push_back( ExprWithName {.name = name, .expr = expr});
-    }
-    Expr* find(std::string_view name) {
-        auto pos = std::find_if(_items.begin(), _items.end(), [&name](const auto &arg){ return arg.name == name; });
-        assert(pos != _items.end());
-        return pos->expr;
-    }
-
-
-    std::string_view try_find_name(Expr *expr) {
-        for (auto &e: _items) {
-            if (e.expr == expr) {
-                return e.name;
-            }
-        }
-        return "";
-    }
-};
-static NamedStorage ST;
-
-class Expr {
-public:
-
-    virtual Node* eval(Tokenizer &t) const = 0;
-    virtual ~Expr(){}
-
-    Expr* set_name(std::string_view name) {
-        ST.set_name(this, name);
-        return this;
-    }
-};
-
-Expr* named_ref(std::string_view exprName);
-
-Expr* term(TokenType tokType);
-
-template <class ...T>
-Expr* seq(NodeType nodeType, T ...subexprs);
-
-template <class ...T>
-Expr* or_seq(NodeType nodeType, T ...subexprs);
-
-
-class RefExpr: public Expr {
-public:
-    std::string_view _exprName;
-    RefExpr(std::string_view exprName): _exprName{exprName} {    }
-    Node* eval(Tokenizer &t) const {
-        auto expr = ST.find(_exprName);
-        return expr->eval(t);
-    }
-
-    Expr* get_real_expr() {
-        return ST.find(_exprName);
-    }
-};
-
-class Term: public Expr {
-public:
-    NodeType _nodeType;
-    TokenType _tokType;
-
-    Term(TokenType tokType): _nodeType{NodeType::Leaf}, _tokType{tokType} {}
-
-    Node* eval(Tokenizer &t) const override {
-        Node *v = new Node(_nodeType);
-        bool ok = true;
-        auto initPos = t.get_pos();
-        Destruct onDestruct([&ok, &v, &t, &initPos]{ if (!ok) { t.reset_pos(initPos); delete v; } });        
-
-        if (t.eof()) {
-            ok = false;
-            return nullptr;
-        }
-
-        auto tok = t.next_token();
-        if (tok.type != _tokType) {
-            ok = false;
-            return nullptr;
-        }
-
-        return new Node(_nodeType, tok); 
-    }
-
-};
-
-class Seq: public Expr {
-public:
-    NodeType _nodeType;
-    
-    Seq(NodeType nodeType): _nodeType{nodeType}{}
-    
-    virtual Expr* at(size_t index) const = 0;
-    
-    virtual size_t size() const = 0;
-    
-    bool eq(const Seq& rhs) const {
-        if (size() != rhs.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < size(); ++i) {
-            if (at(i) != rhs.at(i)) {
-                return false;
-            }
-        }
-        return true;
-    }  
-};
-
-template <class ...T>
-class TemplateSeq: public Seq {
-public:
-    std::array<Expr*, sizeof...(T)> _subexprs;
-    
-    size_t _index; 
-    
-    TemplateSeq(NodeType nodeType, T ...subexprs): Seq(nodeType), _index{0} {
-        append(subexprs...);
-    }
-    
-    Node* eval(Tokenizer &t) const override {
-        Node *v = new Node(_nodeType);
-        bool ok = true;
-        auto initPos = t.get_pos();
-        Destruct onDestruct([&ok, &v, &t, &initPos]{ if (!ok) { t.reset_pos(initPos); delete v; } });        
-        for (auto subexpr: _subexprs) {
-            Node *res = subexpr->eval(t);
-            if (!res) {
-                ok = false;
-                return nullptr;
-            }
-            v->children.push_back(res);
-        }
-        return v;
-    }
-    
-    Expr* at(size_t index) const override {
-        return _subexprs[index];
-    }
-    
-    size_t size() const override {
-        return sizeof...(T);
-    }
-    
-    template <class ...U>
-    void append(const char *name, U ...rest) {
-        _subexprs[_index++] = named_ref(name);
-        append(rest...);
-    }
-    
-    template <class ...U>
-    void append(Expr *expr, U ...rest) {
-        _subexprs[_index++] = expr;
-        append(rest...);
-    }
-    
-    template <class ...U>
-    void append(TokenType tokType, U ...rest) {
-        _subexprs[_index++] = term(tokType);
-        append(rest...);
-    }
-    
-    void append() {
-    }
-};
-
-class Or: public Expr {
-public:
-
-    virtual Expr* at(size_t index) const = 0;
-
-    virtual size_t size() const = 0;
-
-    bool eq(const Or& rhs) const {
-        if (size() != rhs.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < size(); ++i) {
-            if (at(i) != rhs.at(i)) {
-                return false;
-            }
-        }
-        return true;
-    }  
-};
-
-template <class ...T>
-class TemplateOr: public Or {
-public:
-
-    std::array<Expr*, sizeof...(T)> _subexprs;
-    
-    size_t _index; 
-    
-    TemplateOr(T ...subexprs): _index{0} {
-        append(subexprs...);
-    }
-    
-    Node* eval(Tokenizer &t) const override {
-        bool ok = true;
-        auto initPos = t.get_pos();
-        Destruct onDestruct([&ok, &t, &initPos]{ if (!ok) { t.reset_pos(initPos); }  });        
-        for (auto subexpr: _subexprs) {
-            Node *res = subexpr->eval(t);
-            if (res) {
-                return res;
-            }
-            t.reset_pos(initPos);
-        }
-        ok = false;
-        return nullptr;
-    }
-
-    Expr* at(size_t index) const override {
-        return _subexprs[index];
-    }
-
-    size_t size() const override {
-        return sizeof...(T);
-    }
-    
-    template <class ...U>
-    void append(const char *name, U ...rest) {
-        _subexprs[_index++] = named_ref(name);
-        append(rest...);
-    }
-
-    template <class ...U>
-    void append(Expr *expr, U ...rest) {
-        _subexprs[_index++] = expr;
-        append(rest...);
-    }
-
-    template <class ...U>
-    void append(TokenType tokType, U ...rest) {
-        _subexprs[_index++] = term(tokType);
-        append(rest...);
-    }
-
-    void append() {
-    }
-};
-
-template <class T>
-struct PtrStorage {
-    std::vector<T*> _ptrs;
-    ~PtrStorage() {
-        for (auto p: _ptrs) {
-            delete p;
-        }
-    }
-};
-
-
-Expr* named_ref(std::string_view exprName) {
-    static PtrStorage<RefExpr> st;
-    auto pos = std::find_if(st._ptrs.begin(), st._ptrs.end(), [&exprName](const auto &p) {
-        return p->_exprName == exprName;
-    });
-    if (pos != st._ptrs.end()) {
-        return *pos;
-    }
-    auto newTerm = new RefExpr(exprName);
-    st._ptrs.push_back(newTerm);
-    return newTerm;
-}
-
-Expr* term(TokenType tokType) {
-    static PtrStorage<Term> st;
-    auto pos = std::find_if(st._ptrs.begin(), st._ptrs.end(), [&tokType](const auto &p) {
-        return p->_tokType == tokType;
-    });
-    if (pos != st._ptrs.end()) {
-        return *pos;
-    }
-    auto newTerm = new Term(tokType);
-    st._ptrs.push_back(newTerm);
-    return newTerm;
-}
-
-template <class ...T>
-Expr* seq(NodeType nodeType, T ...subexprs) {
-    static PtrStorage<Seq> st;
-    TemplateSeq<T...> obj(nodeType, subexprs...);
-    auto pos = std::find_if(st._ptrs.begin(), st._ptrs.end(), [&obj](const auto &p) { 
-        return obj.eq(*p);
-    });
-    if (pos != st._ptrs.end()) {
-        return *pos;
-    }
-    Seq * newPtr = new TemplateSeq<T...>(obj);
-    st._ptrs.push_back(newPtr);
-    return newPtr;
-}
-
-template <class ...T>
-Expr* or_(T ...subexprs) {
-    static PtrStorage<Or> st;
-    TemplateOr<T...> obj(subexprs...);
-    auto pos = std::find_if(st._ptrs.begin(), st._ptrs.end(), [&obj](const auto &p) { 
-        return obj.eq(*p);
-    });
-    if (pos != st._ptrs.end()) {
-        return *pos;
-    }
-    Or * newPtr = new TemplateOr<T...>(obj);
-    st._ptrs.push_back(newPtr);
-    return newPtr;
-}
-
-
-
-bool __recurs_check_cycles(Expr* const expr, Expr* const par, std::unordered_set<Expr*> &set, std::vector<std::string_view> &path) {
-    if (expr == nullptr) {
-        assert(false && "Faced nullptr!");
-        return false;
-    }
-    if (set.contains(expr)) {
-        path.push_back(ST.try_find_name(expr));
-        return true;
-    }
-    Seq *seq = dynamic_cast<Seq*>(expr);
-    if (seq) {
-        set.insert(expr);
-
-        if (seq->size() == 0) {
-            assert(false && "Faced seq of size = 0");
-        }
-        
-        Expr *child = seq->at(0);
-        bool isCycleInChild = __recurs_check_cycles(child, expr, set, path);
-        if (isCycleInChild) {
-            path.push_back(ST.try_find_name(expr));
-        }
-    
-        set.erase(expr);
-    
-        return isCycleInChild;
-    }
-
-    Or *or_ = dynamic_cast<Or*>(expr);
-    if (or_) {
-        set.insert(expr);
-
-        if (or_->size() == 0) {
-            assert(false && "Faced seq of size = 0");
-        }
-
-        for (size_t i = 0; i < or_->size(); ++i) {
-            Expr *child = or_->at(i);
-            bool isCycleInChild = __recurs_check_cycles(child, expr, set, path); 
-            if (isCycleInChild) {
-                path.push_back(ST.try_find_name(expr));
-                return true;
-            }
-        }
-
-        set.erase(expr);
-        return false;
-    }
-
-    Term* term = dynamic_cast<Term*>(expr);
-    if (term) {
-        return false;
-    }
-
-    RefExpr* ref = dynamic_cast<RefExpr*>(expr);
-    if (ref) {
-        set.insert(expr);
-
-        bool isCycleInChild = __recurs_check_cycles(ref->get_real_expr(), par, set, path);
-        if (isCycleInChild) {
-            path.push_back(ref->_exprName);
-        }
-
-        set.erase(expr);
-        return isCycleInChild;
-    }
-
-    std::cout << "Typename of expr that couldn't be casted" << ": [" << typeid(*expr).name() << "]" << std::endl;
-
-    assert(false && "UNREACHABLE");
-    return false;
-} 
-
-bool detect_cycles(Expr* e) {
-    std::unordered_set<Expr*> set;
-    std::vector<std::string_view> path;
-    bool isCycleInChild = __recurs_check_cycles(e, nullptr, set, path);
-    if (isCycleInChild) {
-        for (size_t i = 0; i < path.size(); ++i) {
-            std::cout<<"["<<i<<"]"<<":  "<<path[i]<<std::endl;
-        }
-    }
-    return isCycleInChild;
-}
+#include <node.h>
+#include <parser.h>
+#include <tokenizer.h>
+#include <help.h>
 
 
 int main() {
@@ -525,7 +15,6 @@ int main() {
 
     while (!tokenizer.eof()) {
         tokenizer.next_token();
-
         if (tokenizer._errBit) {
             std::cerr << "________________________________________________" << std::endl;
             std::cerr << tokenizer._errMsg << std::endl;
@@ -534,46 +23,47 @@ int main() {
         }
     }
 
-    // for (auto t : tokenizer._tokens) {
-    //     std::println("{}", t);
-    // }
+    for (auto t : tokenizer._tokens) {
+        std::println("{}", t);
+    }
 
     tokenizer.reset_pos(TokPos {.index = 0});
     
     using enum TokenType;
 
+    Parser p;
 //1
-    auto opSign = or_(PLUS, MINUS, MUL, DIV);
+    auto opSign = p.or_(PLUS, MINUS, MUL, DIV);
 //2
-    auto operand = or_("brace_op", WORD, NUM_INT, NUM_FLOAT);
+    auto operand = p.or_("brace_op", WORD, NUM_INT, NUM_FLOAT);
 //3
-    auto braceOp = seq(
+    auto braceOp = p.seq(
         NodeType::Op_Brace,
-    /**/L_BR, or_("bin_op", "call_op", operand), R_BR/**/
+    /**/L_BR, p.or_("bin_op", "call_op", operand), R_BR/**/
     )->set_name("brace_op");
     (void)(braceOp);
 //4    
-    auto commaOp = seq(
+    auto commaOp = p.seq(
         NodeType::Op_Comma,
-    /**/or_("call_op", operand), COMMA/**/
+    /**/p.or_("call_op", operand), COMMA/**/
     )->set_name("comma_op");
 //5
-    auto commaOpSeq = seq(
+    auto commaOpSeq = p.seq(
         NodeType::Op_Comma_Seq,
-    /**/commaOp, or_("comma_op_seq", operand)/**/
+    /**/commaOp, p.or_("comma_op_seq", operand)/**/
     )->set_name("comma_op_seq");
 //6
-    auto callBraces = or_ (
-        seq(NodeType::Op_Call_Brace, 
-                L_BR, or_(commaOpSeq, "call_op", operand), R_BR), 
-        seq(NodeType::Op_Call_Brace, 
+    auto callBraces = p.or_ (
+        p.seq(NodeType::Op_Call_Brace, 
+                L_BR, p.or_(commaOpSeq, "call_op", operand), R_BR), 
+        p.seq(NodeType::Op_Call_Brace, 
                 L_BR, R_BR)
     )->set_name("call_braces");
 //7
     auto recursiveCallBraces = 
     /**/
-        or_(
-            seq (NodeType::Op_Call_Brace_Seq, 
+        p.or_(
+            p.seq (NodeType::Op_Call_Brace_Seq, 
                 callBraces, 
                 "recursive_call_braces"
             ),
@@ -584,7 +74,7 @@ int main() {
 //8
     auto callOp = 
     /**/
-        seq (
+        p.seq (
             NodeType::Op_Call,
             operand,
             recursiveCallBraces
@@ -592,15 +82,15 @@ int main() {
     /**/
     ->set_name("call_op");
 //9
-    auto binOp = seq(
+    auto binOp = p.seq(
         NodeType::Op,
-    /**/or_(callOp, operand), opSign, or_("bin_op", callOp, operand)/**/
+    /**/p.or_(callOp, operand), opSign, p.or_("bin_op", callOp, operand)/**/
     )->set_name("bin_op");
 //10
-    auto expr = or_(binOp, callOp, operand)->set_name("expr");
+    auto expr = p.or_(binOp, callOp, operand)->set_name("expr");
 
-
-    bool isCycled = detect_cycles(expr);
+//______cycle check______
+    bool isCycled = p.detect_cycles(expr);
     
     if (isCycled) {
         std::cout << "________________________________________" << std::endl;

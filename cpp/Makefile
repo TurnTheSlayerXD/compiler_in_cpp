@@ -4,7 +4,11 @@ SRC=main.cpp
 OUT=out.exe
 
 INCLUDE=\
-./include/tokenizer.h
+./include/tokenizer.h\
+./include/node.h\
+./include/parser.h\
+./include/help.h
+
 
 $(OUT): $(SRC) $(INCLUDE)
 	$(CC) -o $(OUT) $(FLAGS) -I./include $(SRC)
