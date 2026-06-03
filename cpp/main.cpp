@@ -562,16 +562,14 @@ int main() {
         NodeType::Op_Comma_Seq,
     /**/commaOp, or_("comma_op_seq", operand)/**/
     )->set_name("comma_op_seq");
-
-
+//6
     auto callBraces = or_ (
         seq(NodeType::Op_Call_Brace, 
                 L_BR, or_(commaOpSeq, "call_op", operand), R_BR), 
         seq(NodeType::Op_Call_Brace, 
                 L_BR, R_BR)
     )->set_name("call_braces");
-     
-
+//7
     auto recursiveCallBraces = 
     /**/
         or_(
@@ -583,7 +581,7 @@ int main() {
         )
     /**/
     ->set_name("recursive_call_braces");
-//6
+//8
     auto callOp = 
     /**/
         seq (
@@ -593,12 +591,12 @@ int main() {
         )
     /**/
     ->set_name("call_op");
-//7
+//9
     auto binOp = seq(
         NodeType::Op,
     /**/or_(callOp, operand), opSign, or_("bin_op", callOp, operand)/**/
     )->set_name("bin_op");
-//8
+//10
     auto expr = or_(binOp, callOp, operand)->set_name("expr");
 
 
@@ -610,11 +608,10 @@ int main() {
         std::cout << "________________________________________" << std::endl;
         return 69;
     }
-
 //______end______
+
     Node *root = expr->eval(tokenizer);
     Destruct d([&root](){ delete root; });
-
 
     if (root && tokenizer.eof()) {
         auto res = root->get_str_repr();
@@ -627,6 +624,3 @@ int main() {
         std::cout << "Invalid expr or bug in Parser!" << std::endl;
     }
 }
-
-
-//(((a) + (b)) + (c * d))
