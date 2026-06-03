@@ -11,48 +11,65 @@
 #define MACRO_SEPARATORS \
     X("+", PLUS) \
     X("-", MINUS) \
-    X("'", CHAR) \
-    X("\"", STRING) \
     X("*", MUL) \
     X("/", DIV) \
-    X("(", L_BR) \
-    X(")", R_BR) \
+    X("&", ADDR)\
+    X("'", CHAR) \
+    X("\"", STRING) \
     X(";", SEMICOLON) \
     X(".", DOT) \
-    X(",", COMMA)
-
+    X(",", COMMA) \
+    X("(", L_BR) \
+    X(")", R_BR) \
+    X("[", L_SUBSCR) \
+    X("]", R_SUBSCR)\
+    X("{", L_CURL)\
+    X("}", R_CURL)
     
 enum class TokenType {
     PLUS,
     MINUS,
     MUL,
     DIV,
-    L_BR,
-    R_BR,
-    WORD,
+    ADDR,
+
     CHAR,
     STRING,
+
+    WORD,
     NUM_INT,
     NUM_FLOAT,
+
     SEMICOLON,
     DOT,
     COMMA,
+
+    L_BR,
+    R_BR,
+    
+    L_SUBSCR,
+    R_SUBSCR,
+
+    L_CURL,
+    R_CURL,
 };
 
 std::string_view to_string(TokenType t) {
     switch(t) {
-        case TokenType::PLUS : return "[+]";
-        case TokenType::MINUS : return "[-]";
-        case TokenType::MUL : return "[*]";
-        case TokenType::DIV : return "[/]";
-        case TokenType::L_BR : return "[(]";
-        case TokenType::R_BR : return "[)]";
-        case TokenType::WORD : return "[word]";
-        case TokenType::NUM_INT : return "[num INT]";
-        case TokenType::NUM_FLOAT : return "[num FLOAT]";
-        case TokenType::CHAR : return "[char]";
-        case TokenType::STRING : return "[string]";
-        case TokenType::COMMA : return "[,]";
+        case TokenType::PLUS : return "`+`";
+        case TokenType::MINUS : return "`-`";
+        case TokenType::MUL : return "`*`";
+        case TokenType::DIV : return "`/`";
+        case TokenType::L_BR : return "`(`";
+        case TokenType::R_BR : return "`)`";
+        case TokenType::WORD : return "`word`";
+        case TokenType::NUM_INT : return "`num INT`";
+        case TokenType::NUM_FLOAT : return "`num FLOAT`";
+        case TokenType::CHAR : return "`char`";
+        case TokenType::STRING : return "`string`";
+        case TokenType::COMMA : return "`,`";
+        case TokenType::L_SUBSCR : return "`[`";
+        case TokenType::R_SUBSCR : return "`]`";
         default: assert(false && "UNREACHABLE"); return "";
     }
 }
@@ -148,9 +165,10 @@ public:
         _state{State::START} {}
 
     Tokenizer(const Tokenizer &o) = delete;
-    Tokenizer operator = (const Tokenizer &o) = delete;
+    Tokenizer(Tokenizer &&o) = delete;
+    Tokenizer& operator = (const Tokenizer &o) = delete;
+    Tokenizer& operator = (Tokenizer &&o) = delete;
 
-    Tokenizer(Tokenizer &&o) = default;
 
     TokPos get_pos() {
         return TokPos{ .index = _tokIndex };
@@ -337,7 +355,8 @@ public:
                 _startCur = _cur;
             }
             break;
-        case State::INVALID: break;
+        case State::INVALID: 
+            break;
         }
 
         return 1;

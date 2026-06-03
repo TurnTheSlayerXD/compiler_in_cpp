@@ -13,8 +13,13 @@ enum class NodeType {
     Op_Call,
     Op_Call_Brace,
     Op_Call_Brace_Seq,
+
     Op_Comma,
     Op_Comma_Seq,
+
+    Subscr,
+    Subscr_Seq,
+    Op_Subscr,
 
     Leaf,
 };
@@ -32,6 +37,11 @@ std::string_view to_string(NodeType tp) {
         case Op_Comma_Seq: return "Comma seq";
         case Op_Call_Brace: return "Call braces";
         case Op_Call_Brace_Seq: return "Seq Call braces";
+        
+        
+        case Subscr: return "Subscript";
+        case Subscr_Seq: return "Subscript seq";
+        case Op_Subscr: return "Subscript op";
 
         default: assert(false && "Unexpected"); return "";
     }
@@ -58,7 +68,12 @@ struct Node {
 
     Node(NodeType type): _type{type} {}
     Node(NodeType type, Token relatedToken): _type{type}, relatedToken{relatedToken} {}
-    
+
+    Node(const Node& rhs) = delete;
+    Node(Node&& rhs) = delete;
+    Node& operator =(const Node& rhs) = delete;
+    Node& operator =(Node&& rhs) = delete;
+
     ~Node() {
         for (auto child: children) {
             delete child;

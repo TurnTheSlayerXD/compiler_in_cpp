@@ -13,7 +13,14 @@ INCLUDE=\
 $(OUT): $(SRC) $(INCLUDE)
 	$(CC) -o $(OUT) $(FLAGS) -I./include $(SRC)
 
+
 all: $(OUT)
+
+ASM=asm.txt
+$(ASM): $(SRC) $(INCLUDE)
+	$(CC) -o $(ASM) -S -std=c++23 -O2 -I./include $(SRC)
+
+asm: $(ASM)
 
 prepr: 
 	$(CC) -o main.txt -E $(FLAGS) -I./include $(SRC)

@@ -46,6 +46,13 @@ public:
     PtrStorage<Or> _orSt;
     NamedStorage _namedStorage;
 
+    Parser() {}
+
+    Parser(const Parser &rhs) = delete;
+    Parser(Parser &&rhs) = delete;
+    Parser& operator =(const Parser &rhs) = delete;
+    Parser& operator =(Parser &&rhs) = delete;
+
     CExpr* named_ref(std::string_view exprName);
 
     CExpr* term(TokenType tokType);
