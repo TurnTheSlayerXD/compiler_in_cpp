@@ -1,5 +1,5 @@
 CC=clang++
-FLAGS=-std=c++23 -Wall -Wextra -Wpedantic -ggdb
+FLAGS=-std=c++23 -Wall -Wextra -Wpedantic -ggdb -O2
 SRC=main.cpp
 OUT=out.exe
 

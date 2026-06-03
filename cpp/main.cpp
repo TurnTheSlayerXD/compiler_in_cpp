@@ -1,6 +1,7 @@
 #include <iostream>
 #include <tokenizer.h>
 #include <array>
+#include <unordered_set>
 
 template <class T>
 struct Destruct {
@@ -21,6 +22,8 @@ enum class NodeType {
     Op_Call,
 
     Op_Call_Brace,
+    Op_Call_Brace_Seq,
+
     Op_Comma,
     Op_Comma_Seq,
 
@@ -36,7 +39,8 @@ std::string_view to_string(NodeType tp) {
         case Leaf: return "Leaf";
         case Op_Comma: return "Comma op";
         case Op_Comma_Seq: return "Comma seq";
-        case Op_Call_Brace: return "Braces around commas";
+        case Op_Call_Brace: return "Call braces";
+        case Op_Call_Brace_Seq: return "Seq Call braces";
         default: assert(false && "Unexpected"); return "";
     }
 }
@@ -123,6 +127,16 @@ struct NamedStorage {
         assert(pos != _items.end());
         return pos->expr;
     }
+
+
+    std::string_view try_find_name(Expr *expr) {
+        for (auto &e: _items) {
+            if (e.expr == expr) {
+                return e.name;
+            }
+        }
+        return "";
+    }
 };
 static NamedStorage ST;
 
@@ -156,6 +170,10 @@ public:
     Node* eval(Tokenizer &t) const {
         auto expr = ST.find(_exprName);
         return expr->eval(t);
+    }
+
+    Expr* get_real_expr() {
+        return ST.find(_exprName);
     }
 };
 
@@ -413,10 +431,97 @@ Expr* or_(T ...subexprs) {
 }
 
 
+
+bool __recurs_check_cycles(Expr* const expr, Expr* const par, std::unordered_set<Expr*> &set, std::vector<std::string_view> &path) {
+    if (expr == nullptr) {
+        assert(false && "Faced nullptr!");
+        return false;
+    }
+    if (set.contains(expr)) {
+        path.push_back(ST.try_find_name(expr));
+        return true;
+    }
+    Seq *seq = dynamic_cast<Seq*>(expr);
+    if (seq) {
+        set.insert(expr);
+
+        if (seq->size() == 0) {
+            assert(false && "Faced seq of size = 0");
+        }
+        
+        Expr *child = seq->at(0);
+        bool isCycleInChild = __recurs_check_cycles(child, expr, set, path);
+        if (isCycleInChild) {
+            path.push_back(ST.try_find_name(expr));
+        }
+    
+        set.erase(expr);
+    
+        return isCycleInChild;
+    }
+
+    Or *or_ = dynamic_cast<Or*>(expr);
+    if (or_) {
+        set.insert(expr);
+
+        if (or_->size() == 0) {
+            assert(false && "Faced seq of size = 0");
+        }
+
+        for (size_t i = 0; i < or_->size(); ++i) {
+            Expr *child = or_->at(i);
+            bool isCycleInChild = __recurs_check_cycles(child, expr, set, path); 
+            if (isCycleInChild) {
+                path.push_back(ST.try_find_name(expr));
+                return true;
+            }
+        }
+
+        set.erase(expr);
+        return false;
+    }
+
+    Term* term = dynamic_cast<Term*>(expr);
+    if (term) {
+        return false;
+    }
+
+    RefExpr* ref = dynamic_cast<RefExpr*>(expr);
+    if (ref) {
+        set.insert(expr);
+
+        bool isCycleInChild = __recurs_check_cycles(ref->get_real_expr(), par, set, path);
+        if (isCycleInChild) {
+            path.push_back(ref->_exprName);
+        }
+
+        set.erase(expr);
+        return isCycleInChild;
+    }
+
+    std::cout << "Typename of expr that couldn't be casted" << ": [" << typeid(*expr).name() << "]" << std::endl;
+
+    assert(false && "UNREACHABLE");
+    return false;
+} 
+
+bool detect_cycles(Expr* e) {
+    std::unordered_set<Expr*> set;
+    std::vector<std::string_view> path;
+    bool isCycleInChild = __recurs_check_cycles(e, nullptr, set, path);
+    if (isCycleInChild) {
+        for (size_t i = 0; i < path.size(); ++i) {
+            std::cout<<"["<<i<<"]"<<":  "<<path[i]<<std::endl;
+        }
+    }
+    return isCycleInChild;
+}
+
+
 int main() {
     // Tokenizer tokenizer("((a) + (b * d)) * (d + 69) ");
     // Tokenizer tokenizer("(fuu( fuu(asdasdasd), 2, 3) * (asdasdsa + 1)(69)) + ((asdasd)() + 1 * 2)");
-    Tokenizer tokenizer("(1)(fuu(1))");
+    Tokenizer tokenizer("(fuu())()()(a())");
 
     while (!tokenizer.eof()) {
         tokenizer.next_token();
@@ -429,9 +534,9 @@ int main() {
         }
     }
 
-    for (auto t : tokenizer._tokens) {
-        std::println("{}", t);
-    }
+    // for (auto t : tokenizer._tokens) {
+    //     std::println("{}", t);
+    // }
 
     tokenizer.reset_pos(TokPos {.index = 0});
     
@@ -457,26 +562,59 @@ int main() {
         NodeType::Op_Comma_Seq,
     /**/commaOp, or_("comma_op_seq", operand)/**/
     )->set_name("comma_op_seq");
+
+
+    auto callBraces = or_ (
+        seq(NodeType::Op_Call_Brace, 
+                L_BR, or_(commaOpSeq, "call_op", operand), R_BR), 
+        seq(NodeType::Op_Call_Brace, 
+                L_BR, R_BR)
+    )->set_name("call_braces");
+     
+
+    auto recursiveCallBraces = 
+    /**/
+        or_(
+            seq (NodeType::Op_Call_Brace_Seq, 
+                callBraces, 
+                "recursive_call_braces"
+            ),
+            callBraces
+        )
+    /**/
+    ->set_name("recursive_call_braces");
 //6
-    auto callOp = seq(
-        NodeType::Op_Call,
+    auto callOp = 
     /**/
-        operand, 
-        or_(seq(NodeType::Op_Call_Brace, L_BR, or_(commaOpSeq, "call_op", operand), R_BR), 
-            seq(NodeType::Op_Call_Brace, L_BR, R_BR))
+        seq (
+            NodeType::Op_Call,
+            operand,
+            recursiveCallBraces
+        )
     /**/
-    )->set_name("call_op");
+    ->set_name("call_op");
 //7
     auto binOp = seq(
         NodeType::Op,
     /**/or_(callOp, operand), opSign, or_("bin_op", callOp, operand)/**/
     )->set_name("bin_op");
 //8
-    auto expr = or_(binOp, callOp, operand);
+    auto expr = or_(binOp, callOp, operand)->set_name("expr");
 
+
+    bool isCycled = detect_cycles(expr);
+    
+    if (isCycled) {
+        std::cout << "________________________________________" << std::endl;
+        std::cout << "WARNING: DETECTED CYCLES IN EXPR" << std::endl;
+        std::cout << "________________________________________" << std::endl;
+        return 69;
+    }
 
 //______end______
     Node *root = expr->eval(tokenizer);
+    Destruct d([&root](){ delete root; });
+
 
     if (root && tokenizer.eof()) {
         auto res = root->get_str_repr();
@@ -488,8 +626,6 @@ int main() {
     else {
         std::cout << "Invalid expr or bug in Parser!" << std::endl;
     }
-
-    delete root;
 }
 
 
