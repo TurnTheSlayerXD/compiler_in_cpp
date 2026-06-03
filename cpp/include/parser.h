@@ -5,6 +5,9 @@
 
 class Parser;
 class Expr;
+
+using CExpr = const Expr;
+
 class RefExpr;
 class Term;
 class Seq;
@@ -23,16 +26,16 @@ struct PtrStorage {
 struct NamedStorage {    
     struct ExprWithName {
         std::string_view name;
-        Expr *expr;
+        CExpr *expr;
     };
 
     std::vector<ExprWithName> _items;
     
-    void set_name(Expr* expr, std::string_view name);
+    void set_name(CExpr* expr, std::string_view name);
     
-    Expr* find(std::string_view name);
+    CExpr* find(std::string_view name);
 
-    std::string_view try_find_name(Expr *expr);
+    std::string_view try_find_name(CExpr *CExpr);
 };
 
 class Parser {
@@ -43,34 +46,34 @@ public:
     PtrStorage<Or> _orSt;
     NamedStorage _namedStorage;
 
-    Expr* named_ref(std::string_view exprName);
+    CExpr* named_ref(std::string_view exprName);
 
-    Expr* term(TokenType tokType);
-
-    template <class ...T>
-    Expr* seq(NodeType nodeType, T ...subexprs);
+    CExpr* term(TokenType tokType);
 
     template <class ...T>
-    Expr* or_(T ...subexprs);
+    CExpr* seq(NodeType nodeType, T ...subexprs);
 
-    bool __recurs_check_cycles(Expr* const expr, Expr* const par, std::unordered_set<Expr*> &set, std::vector<std::string_view> &path);
+    template <class ...T>
+    CExpr* or_(T ...subexprs);
 
-    bool detect_cycles(Expr* e);
+    bool __recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered_set<CExpr*> &set, std::vector<std::string_view> &path);
+
+    bool detect_cycles(CExpr* const e);
 };
 
-void NamedStorage::set_name(Expr* expr, std::string_view name) {
+void NamedStorage::set_name(CExpr* expr, std::string_view name) {
     auto pos = std::find_if(_items.begin(), _items.end(), [&name](const auto &arg){ return arg.name == name; });
     assert(pos == _items.end());
     _items.push_back( ExprWithName {.name = name, .expr = expr});
 }
 
-Expr* NamedStorage::find(std::string_view name) {
+CExpr* NamedStorage::find(std::string_view name) {
     auto pos = std::find_if(_items.begin(), _items.end(), [&name](const auto &arg){ return arg.name == name; });
     assert(pos != _items.end());
     return pos->expr;
 }
 
-std::string_view NamedStorage::try_find_name(Expr *expr) {
+std::string_view NamedStorage::try_find_name(CExpr *expr) {
     for (auto &e: _items) {
         if (e.expr == expr) {
             return e.name;
@@ -88,8 +91,7 @@ public:
     Expr(Parser &p): _p{p} {
     }
 
-
-    Expr* set_name(std::string_view name) {
+    CExpr* set_name(std::string_view name) const {
         _p._namedStorage.set_name(this, name);
         return this;
     }
@@ -105,7 +107,7 @@ public:
         return expr->eval(t);
     }
 
-    Expr* get_real_expr() {
+    CExpr* get_real_expr() const {
         return _p._namedStorage.find(_exprName);
     }
 };
@@ -145,7 +147,7 @@ public:
     
     Seq(Parser &p, NodeType nodeType): Expr(p), _nodeType{nodeType}{}
     
-    virtual Expr* at(size_t index) const = 0;
+    virtual CExpr* at(size_t index) const = 0;
     
     virtual size_t size() const = 0;
     
@@ -165,7 +167,7 @@ public:
 template <class ...T>
 class TemplateSeq: public Seq {
 public:
-    std::array<Expr*, sizeof...(T)> _subexprs;
+    std::array<CExpr*, sizeof...(T)> _subexprs;
     
     size_t _index; 
     
@@ -189,7 +191,7 @@ public:
         return v;
     }
     
-    Expr* at(size_t index) const override {
+    CExpr* at(size_t index) const override {
         return _subexprs[index];
     }
     
@@ -204,7 +206,7 @@ public:
     }
     
     template <class ...U>
-    void append(Expr *expr, U ...rest) {
+    void append(CExpr *expr, U ...rest) {
         _subexprs[_index++] = expr;
         append(rest...);
     }
@@ -224,7 +226,7 @@ public:
 
     Or(Parser &p): Expr(p){}
 
-    virtual Expr* at(size_t index) const = 0;
+    virtual CExpr* at(size_t index) const = 0;
 
     virtual size_t size() const = 0;
 
@@ -245,7 +247,7 @@ template <class ...T>
 class TemplateOr: public Or {
 public:
 
-    std::array<Expr*, sizeof...(T)> _subexprs;
+    std::array<CExpr*, sizeof...(T)> _subexprs;
     
     size_t _index; 
     
@@ -268,7 +270,7 @@ public:
         return nullptr;
     }
 
-    Expr* at(size_t index) const override {
+    CExpr* at(size_t index) const override {
         return _subexprs[index];
     }
 
@@ -283,7 +285,7 @@ public:
     }
 
     template <class ...U>
-    void append(Expr *expr, U ...rest) {
+    void append(CExpr *expr, U ...rest) {
         _subexprs[_index++] = expr;
         append(rest...);
     }
@@ -298,9 +300,7 @@ public:
     }
 };
 
-
-
-Expr* Parser::named_ref(std::string_view exprName) {
+CExpr* Parser::named_ref(std::string_view exprName) {
     auto pos = std::find_if(_refSt._ptrs.begin(), _refSt._ptrs.end(), [&exprName](const auto &p) {
         return p->_exprName == exprName;
     });
@@ -312,7 +312,7 @@ Expr* Parser::named_ref(std::string_view exprName) {
     return newRef;
 }
     
-Expr* Parser::term(TokenType tokType) {
+CExpr* Parser::term(TokenType tokType) {
     auto pos = std::find_if(_termSt._ptrs.begin(), _termSt._ptrs.end(), [&tokType](const auto &p) {
         return p->_tokType == tokType;
     });
@@ -325,7 +325,7 @@ Expr* Parser::term(TokenType tokType) {
 }
 
 template <class ...T>
-Expr* Parser::seq(NodeType nodeType, T ...subexprs) {
+CExpr* Parser::seq(NodeType nodeType, T ...subexprs) {
     TemplateSeq<T...> obj(*this, nodeType, subexprs...);
     auto pos = std::find_if(_seqSt._ptrs.begin(), _seqSt._ptrs.end(), [&obj](const auto &p) { 
         return obj.eq(*p);
@@ -339,7 +339,7 @@ Expr* Parser::seq(NodeType nodeType, T ...subexprs) {
 }
 
 template <class ...T>
-Expr* Parser::or_(T ...subexprs) {
+CExpr* Parser::or_(T ...subexprs) {
     TemplateOr<T...> obj(*this, subexprs...);
     auto pos = std::find_if(_orSt._ptrs.begin(), _orSt._ptrs.end(), [&obj](const auto &p) { 
         return obj.eq(*p);
@@ -352,7 +352,7 @@ Expr* Parser::or_(T ...subexprs) {
     return newPtr;
 }
 
-bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unordered_set<Expr*> &set, std::vector<std::string_view> &path) {
+bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered_set<CExpr*> &set,std::vector<std::string_view> &path) {
     if (expr == nullptr) {
         assert(false && "Faced nullptr!");
         return false;
@@ -361,7 +361,7 @@ bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unord
         path.push_back(_namedStorage.try_find_name(expr));
         return true;
     }
-    Seq *seq = dynamic_cast<Seq*>(expr);
+    const Seq *seq = dynamic_cast<const Seq*>(expr);
     if (seq) {
         set.insert(expr);
 
@@ -369,7 +369,7 @@ bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unord
             assert(false && "Faced seq of size = 0");
         }
         
-        Expr *child = seq->at(0);
+        CExpr *child = seq->at(0);
         bool isCycleInChild = __recurs_check_cycles(child, expr, set, path);
         if (isCycleInChild) {
             path.push_back(_namedStorage.try_find_name(expr));
@@ -380,7 +380,7 @@ bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unord
         return isCycleInChild;
     }
 
-    Or *or_ = dynamic_cast<Or*>(expr);
+    const Or *or_ = dynamic_cast<const Or*>(expr);
     if (or_) {
         set.insert(expr);
 
@@ -389,7 +389,7 @@ bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unord
         }
 
         for (size_t i = 0; i < or_->size(); ++i) {
-            Expr *child = or_->at(i);
+            CExpr *child = or_->at(i);
             bool isCycleInChild = __recurs_check_cycles(child, expr, set, path); 
             if (isCycleInChild) {
                 path.push_back(_namedStorage.try_find_name(expr));
@@ -401,12 +401,12 @@ bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unord
         return false;
     }
 
-    Term* term = dynamic_cast<Term*>(expr);
+    const Term* term = dynamic_cast<const Term*>(expr);
     if (term) {
         return false;
     }
 
-    RefExpr* ref = dynamic_cast<RefExpr*>(expr);
+    const RefExpr* ref = dynamic_cast<const RefExpr*>(expr);
     if (ref) {
         set.insert(expr);
 
@@ -425,8 +425,8 @@ bool Parser::__recurs_check_cycles(Expr* const expr, Expr* const par, std::unord
     return false;
 } 
 
-bool Parser::detect_cycles(Expr* e) {
-    std::unordered_set<Expr*> set;
+bool Parser::detect_cycles(CExpr* e) {
+    std::unordered_set<CExpr*> set;
     std::vector<std::string_view> path;
     bool isCycleInChild = __recurs_check_cycles(e, nullptr, set, path);
     if (isCycleInChild) {

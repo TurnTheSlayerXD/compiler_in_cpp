@@ -6,14 +6,13 @@
 #include <tokenizer.h>
 
 enum class NodeType {
-    Op,
+    Op_Bin,
     Op_Un,
-    Op_Brace,
-    Op_Call,
+    Brace,
 
+    Op_Call,
     Op_Call_Brace,
     Op_Call_Brace_Seq,
-
     Op_Comma,
     Op_Comma_Seq,
 
@@ -22,15 +21,18 @@ enum class NodeType {
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
     switch (tp) {
-        case Op: return "Op";
-        case Op_Un: return "Unar Op";
-        case Op_Brace: return "Brace Op";
-        case Op_Call: return "Call op";
         case Leaf: return "Leaf";
+        case Brace: return "Brace";
+
+        case Op_Bin: return "Bin Op";
+        case Op_Un: return "Un Op";
+
+        case Op_Call: return "Call op";
         case Op_Comma: return "Comma op";
         case Op_Comma_Seq: return "Comma seq";
         case Op_Call_Brace: return "Call braces";
         case Op_Call_Brace_Seq: return "Seq Call braces";
+
         default: assert(false && "Unexpected"); return "";
     }
 }

@@ -130,6 +130,7 @@ public:
 
     size_t _tokIndex;
     Cursor _cur;
+    Cursor _startCur;
 
     std::string_view _lastSep;
     TokenType _lastSepType;
@@ -250,6 +251,99 @@ public:
         return slice(_srcText, l, r);
     }
 
+
+    size_t manage_state() {
+        switch (_state) {
+        case State::START:
+            if (reached_end()) {}
+            else if (cur_char() == '.') _state = State::DOT;
+            else if (cur_char() == '\'') _state = State::SINGLE_QUOTE;
+            else if (cur_char() == '"') _state = State::DOUBLE_QUOTE;
+            else if (isalpha(cur_char())) _state = State::WORD;
+            else if (isdigit(cur_char())) _state = State::NUM;
+            else if (cur_char() == '#') _state = State::PREPR;
+            else if (lookup_for_sep()) {
+                add_token_and_reset(_lastSepType, _startCur, _lastSep);
+                assert(_lastSep.size() > 0);
+                return _lastSep.size();
+            }
+            else _state = State::INVALID;
+            break;
+
+        case State::SINGLE_QUOTE:
+            if (reached_end()) _state = State::INVALID;
+            else if (cur_char() == '\\') return 2;
+            else if (cur_char() == '\'') {
+                add_token_and_reset(TokenType::CHAR, _startCur, slice_self(_startCur.pos, _cur.pos));
+            }
+            break;
+
+        case State::DOUBLE_QUOTE:
+            if (reached_end()) _state = State::INVALID;
+            else if (cur_char() == '\\') return 2;
+            else if (cur_char() == '\"') {
+                add_token_and_reset(TokenType::STRING, _startCur, slice_self(_startCur.pos, _cur.pos));
+            }
+            break;
+
+        case State::WORD:
+            if (reached_end() || lookup_for_sep() || isspace(cur_char())) { 
+                add_token_and_reset(TokenType::WORD, _startCur, slice_self(_startCur.pos, _cur.pos)); 
+                return 0;
+            }
+            else if (isalnum(cur_char())) {}
+            else _state = State::INVALID;
+            break;
+
+        case State::NUM:
+            if (reached_end())  {
+                add_token_and_reset(TokenType::NUM_INT, _startCur, slice_self(_startCur.pos, _cur.pos));
+                return 0;
+            }
+            else if (isdigit(cur_char())) {}
+            else if (cur_char() == '.') _state = State::FLOAT; 
+            else if (lookup_for_sep() || isspace(cur_char())) {
+                add_token_and_reset(TokenType::NUM_INT, _startCur, slice_self(_startCur.pos, _cur.pos));
+                return 0;
+            }
+            else _state = State::INVALID;
+            break;
+
+        case State::FLOAT:
+            if (reached_end() || lookup_for_sep() || isspace(cur_char())) {
+                add_token_and_reset(TokenType::NUM_FLOAT, _startCur, slice_self(_startCur.pos, _cur.pos));
+                return 0;
+            }
+            else if (isdigit(cur_char())) {}
+            else _state = State::INVALID;
+            break;
+
+        case State::DOT: 
+            if (reached_end()) {
+                add_token_and_reset(TokenType::DOT, _startCur, slice_self(_startCur.pos, _cur.pos));
+                return 0;
+            }
+            else if (isdigit(cur_char())) _state = State::FLOAT;
+            else {
+                add_token_and_reset(TokenType::DOT, _startCur, slice_self(_startCur.pos, _cur.pos));
+                return 0;
+            }
+            break;
+        case State::PREPR:
+            if (reached_end())  {}
+            else if (cur_char() == '\n') {
+                _state = State::START;
+                trim_left();
+                _startCur = _cur;
+            }
+            break;
+        case State::INVALID: break;
+        }
+
+        return 1;
+    }
+
+
     Token next_token() {
         if (_tokIndex < _tokens.size()) {
             _tokIndex += 1;
@@ -257,114 +351,35 @@ public:
         }
     
         trim_left();
-        Cursor startCur = _cur;
+        _startCur = _cur;
 
         for (;;) {
-            switch (_state) {
-            case State::START:
-                if (reached_end()) {}
-                else if (cur_char() == '.') _state = State::DOT;
-                else if (cur_char() == '\'') _state = State::SINGLE_QUOTE;
-                else if (cur_char() == '"') _state = State::DOUBLE_QUOTE;
-                else if (isalpha(cur_char())) _state = State::WORD;
-                else if (isdigit(cur_char())) _state = State::NUM;
-                else if (cur_char() == '#') _state = State::PREPR;
-                else if (lookup_for_sep()) {
-                    auto newToken = add_token_and_reset(_lastSepType, startCur, _lastSep);
-                    assert(_lastSep.size() > 0);
-                    for (size_t i = 0; i < _lastSep.size(); ++i) {
-                        iter();
-                    }
-                    return newToken;
-                }
-                else _state = State::INVALID;
-                break;
+            size_t prevTokensCount = _tokens.size();
 
-            case State::SINGLE_QUOTE:
-                if (reached_end()) _state = State::INVALID;
-                else if (cur_char() == '\\')
-                    iter();
-                else if(cur_char() == '\'') {
-                    auto endCur = _cur;
-                    iter();
-                    return add_token_and_reset(TokenType::CHAR, startCur, slice_self(startCur.pos, endCur.pos));
-                }
-                break;
-
-            case State::DOUBLE_QUOTE:
-                if (reached_end()) _state = State::INVALID;
-                if (cur_char() == '\\')
-                    iter();
-                else if(cur_char() == '\"') {
-                    auto endCur = _cur;
-                    iter();
-                    return add_token_and_reset(TokenType::STRING, startCur, slice_self(startCur.pos, endCur.pos));
-                }
-                break;
-
-            case State::WORD:
-                if (reached_end() || lookup_for_sep() || isspace(cur_char()))
-                    return add_token_and_reset(TokenType::WORD, startCur, slice_self(startCur.pos, _cur.pos));
-                
-                if (isalnum(cur_char())) {} 
-                else _state = State::INVALID;
-                break;
-
-            case State::NUM:
-                if (reached_end())
-                    return add_token_and_reset(TokenType::NUM_INT, startCur, slice_self(startCur.pos, _cur.pos));
-                else if (isdigit(cur_char())) {}
-                else if (cur_char() == '.') _state = State::FLOAT;
-                else if (lookup_for_sep() || isspace(cur_char()))
-                    return add_token_and_reset(TokenType::NUM_INT, startCur, slice_self(startCur.pos, _cur.pos));
-                else _state = State::INVALID;
-                break;
-
-            case State::FLOAT:
-                if (reached_end())
-                    return add_token_and_reset(TokenType::NUM_FLOAT, startCur, slice_self(startCur.pos, _cur.pos));
-                else if (isdigit(cur_char())) {}
-                else if (lookup_for_sep() || isspace(cur_char()))
-                    return add_token_and_reset(TokenType::NUM_FLOAT, startCur, slice_self(startCur.pos, _cur.pos));
-                else _state = State::INVALID;
-                break;
-
-            case State::DOT: 
-                if (reached_end()) {
-                    iter();
-                    return add_token_and_reset(TokenType::DOT, startCur, slice_self(startCur.pos, _cur.pos));
-                }
-                else if (isdigit(cur_char())) _state = State::FLOAT;
-                else {
-                    iter();
-                    return add_token_and_reset(TokenType::DOT, startCur, slice_self(startCur.pos, _cur.pos));
-                }
-                break;
-            case State::PREPR:
-                if (reached_end()) 
-                    break;
-                if (cur_char() == '\n') {
-                    _state = State::START;
-                    trim_left();
-                    startCur = _cur;
-                }
-                break;
-            case State::INVALID: break;
-            }
-
+            size_t timesToIter = manage_state();
 
             if (_state == State::INVALID) {
                 _errBit = true;
                 _errMsg = "Invalid Tokenizer state";
                 return {};
             }
-            else if (reached_end() && _state != State::START) {
+
+            if (reached_end() && _state != State::START) {
                 _errBit = true;
                 _errMsg = "next_token: Reached end of source while in MIDDLE state";
                 return {};
             }
-
-            iter();
+            
+            for (size_t i = 0; i < timesToIter && !reached_end(); ++i) {
+                iter();
+            }
+            
+            if (_tokens.size() > prevTokensCount) {
+                if (_state != State::START) {
+                    assert(false && "Unreachable");
+                }
+                return _tokens.back();
+            }
         }
     }
 
