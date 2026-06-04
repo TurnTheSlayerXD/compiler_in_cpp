@@ -5,82 +5,154 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <algorithm>
+
 #include <cassert>
-#include <print>
 
 #define MACRO_SEPARATORS \
-    X("+", PLUS) \
-    X("-", MINUS) \
-    X("*", MUL) \
-    X("/", DIV) \
-    X("&", ADDR)\
-    X("'", CHAR) \
+    X("=",  ASSIGN) \
+    X("+",  PLUS) \
+    X("-",  MINUS) \
+    X("*",  MUL) \
+    X("/",  DIV) \
+    X("&",  ADDR)\
+    X("++", INCR) \
+    X("--", DECR) \
+    X(">",  GR)\
+    X("<",  LE)\
+    X(">=", GR_E)\
+    X("<=", LE_E)\
+    X("==", EQ)\
+    X("&&", AND)\
+    X("||", OR)\
+    X("'",  CHAR) \
     X("\"", STRING) \
-    X(";", SEMICOLON) \
-    X(".", DOT) \
-    X(",", COMMA) \
-    X("(", L_BR) \
-    X(")", R_BR) \
-    X("[", L_SUBSCR) \
-    X("]", R_SUBSCR)\
-    X("{", L_CURL)\
-    X("}", R_CURL)
+    X(";",  SEMICOLON) \
+    X(".",  DOT) \
+    X(",",  COMMA) \
+    X("(",  L_BR) \
+    X(")",  R_BR) \
+    X("[",  L_SUBSCR) \
+    X("]",  R_SUBSCR)\
+    X("{",  L_CURL)\
+    X("}",  R_CURL)
+
+#define MACRO_KWDS\
+    X("return", KWD_RET)\
+    X("struct", KWD_STRUCT)\
+    X("for",    KWD_FOR)\
+    X("while",  KWD_WHILE)\
+    X("break",  KWD_BREAK)\
+    X("do",     KWD_DO)\
+    X("if",     KWD_IF)\
+    X("else",   KWD_ELSE)\
+    X("switch", KWD_SWITCH)\
+    X("case",   KWD_CASE)
     
 enum class TokenType {
+    ASSIGN,
     PLUS,
     MINUS,
     MUL,
     DIV,
     ADDR,
-
+    INCR,
+    DECR,
+    GR,
+    LE,
+    GR_E,
+    LE_E,
+    EQ,
+    AND,
+    OR,
     CHAR,
     STRING,
-
     WORD,
     NUM_INT,
     NUM_FLOAT,
-
     SEMICOLON,
     DOT,
     COMMA,
-
     L_BR,
     R_BR,
-    
     L_SUBSCR,
     R_SUBSCR,
-
     L_CURL,
     R_CURL,
+    KWD_RET,
+    KWD_STRUCT,
+    KWD_FOR,
+    KWD_WHILE,
+    KWD_BREAK,
+    KWD_DO,
+    KWD_IF,
+    KWD_ELSE,
+    KWD_SWITCH,
+    KWD_CASE,
 };
 
+constexpr auto MACRO_SEP_COUNT = std::size({
+    #define X(str, tok) std::make_tuple((str), (TokenType::tok)),
+        MACRO_SEPARATORS
+    #undef X
+});
+
+
 std::string_view to_string(TokenType t) {
+    using enum TokenType;
     switch(t) {
-        case TokenType::PLUS : return "`+`";
-        case TokenType::MINUS : return "`-`";
-        case TokenType::MUL : return "`*`";
-        case TokenType::DIV : return "`/`";
-        case TokenType::L_BR : return "`(`";
-        case TokenType::R_BR : return "`)`";
-        case TokenType::WORD : return "`word`";
-        case TokenType::NUM_INT : return "`num INT`";
-        case TokenType::NUM_FLOAT : return "`num FLOAT`";
-        case TokenType::CHAR : return "`char`";
-        case TokenType::STRING : return "`string`";
-        case TokenType::COMMA : return "`,`";
-        case TokenType::L_SUBSCR : return "`[`";
-        case TokenType::R_SUBSCR : return "`]`";
-        default: assert(false && "UNREACHABLE"); return "";
+        case PLUS : return "`+`";
+        case MINUS : return "`-`";
+        case MUL : return "`*`";
+        case DIV : return "`/`";
+        case L_BR : return "`(`";
+        case R_BR : return "`)`";
+        case WORD : return "`word`";
+        case NUM_INT : return "`num INT`";
+        case NUM_FLOAT : return "`num FLOAT`";
+        case CHAR : return "`char`";
+        case STRING : return "`string`";
+        case COMMA : return "`,`";
+        case L_SUBSCR : return "`[`";
+        case R_SUBSCR : return "`]`";
+        case ASSIGN : return "`=`";
+        case INCR : return "`++`";
+        case DECR : return "`--`";
+        case GR : return "`>`";
+        case LE : return "`<`";
+        case GR_E : return "`>=`";
+        case LE_E : return "`<=`";
+        case EQ : return "`==`";
+        case AND : return "`&&`";
+        case OR : return "`||`";
+        case ADDR : return "`&`";
+        case KWD_RET : return "`return`";
+        case KWD_STRUCT : return "`struct`";
+        case KWD_FOR : return "`for`";
+        case KWD_WHILE : return "`while`";
+        case KWD_BREAK : return "`break`";
+        case KWD_DO : return "`do`";
+        case KWD_IF : return "`if`";
+        case KWD_ELSE : return "`else`";
+        case KWD_SWITCH : return "`switch`";
+        case KWD_CASE : return "`case`";
+        case SEMICOLON : return "`;`";
+        default: { fprintf(stderr, "to_string not implemented for: [%d]\n", static_cast<int>(t)); assert(false && "UNREACHABLE"); return "";}
     }
 }
 
-template <>
-struct std::formatter<TokenType> : std::formatter<std::string> {
-  auto format(TokenType type, format_context& ctx) const {
-    return formatter<string>::format(
-      std::format("{}", to_string(type)), ctx);
-  }
-};
+// template <>
+// struct std::formatter<TokenType> : std::formatter<std::string> {
+//   auto format(TokenType type, format_context& ctx) const {
+//     return formatter<string>::format(
+//       std::format("{}", to_string(type)), ctx);
+//   }
+// };
+
+std::ostream& operator<<(std::ostream& o, TokenType t) {
+    o << to_string(t);
+    return o;
+}
 
 
 struct Cursor {
@@ -96,13 +168,19 @@ struct Token {
     size_t           tokIndex;
 };
 
-template <>
-struct std::formatter<Token>: std::formatter<std::string> {
-  auto format(Token t, format_context& ctx) const {
-    return formatter<string>::format(
-      std::format("Token {}, str=`{}`", t.type, t.text), ctx);
-  }
-};
+// template <>
+// struct std::formatter<Token>: std::formatter<std::string> {
+//   auto format(Token t, format_context& ctx) const {
+//     return formatter<string>::format(
+//       std::format("Token {}, str=`{}`", t.type, t.text), ctx);
+//   }
+// };
+
+std::ostream& operator<<(std::ostream& str, Token t) {
+    str << "Token" << t.type << "," << " " << "`" << t.text << "`";
+    return str;
+}
+
 
 std::string_view slice(std::string_view s, size_t l, size_t r) {
     assert(l <= r && "slice: l > r");
@@ -156,13 +234,28 @@ public:
     std::string_view _errMsg;
 
     State _state;
-    
+
+    std::array<std::tuple<std::string, TokenType>, MACRO_SEP_COUNT> _separators;
+
+    TokenType _lastKwd;
+
     Tokenizer(std::string_view text): 
         _srcText{text},  
         _tokIndex{0},
         _cur{0, 0, 0},
         _errBit{false},
-        _state{State::START} {}
+        _state{State::START} {
+
+        _separators = {
+            #define X(str, tok) std::make_tuple((str), (TokenType::tok)),
+            MACRO_SEPARATORS
+            #undef X
+        };
+
+        std::sort(_separators.begin(), _separators.end(), [](const auto& lhs, const auto& rhs) {
+            return std::get<0>(lhs).size() > std::get<0>(rhs).size();
+        });
+    }
 
     Tokenizer(const Tokenizer &o) = delete;
     Tokenizer(Tokenizer &&o) = delete;
@@ -252,15 +345,13 @@ public:
     }
 
     bool lookup_for_sep() {
-        #define X(str, type) \
-            if (is_cur_matches(str)) {\
-                _lastSep = str; \
-                _lastSepType = (TokenType::type); \
-                return true; \
+        for (auto &[str, tokType]: _separators) {
+            if (is_cur_matches(str)) {
+                _lastSep = str;
+                _lastSepType = tokType;
+                return true;
             }
-            MACRO_SEPARATORS
-        #undef X
-
+        }
         return false;
     }
 
@@ -269,6 +360,12 @@ public:
         return slice(_srcText, l, r);
     }
 
+    bool check_keyword(std::string_view word) {
+        #define X(str, tp) if (word == str) { _lastKwd = TokenType::tp; return true; }
+            MACRO_KWDS
+        #undef X
+        return false;
+    }
 
     size_t manage_state() {
         switch (_state) {
@@ -306,7 +403,12 @@ public:
 
         case State::WORD:
             if (reached_end() || lookup_for_sep() || isspace(cur_char())) { 
-                add_token_and_reset(TokenType::WORD, _startCur, slice_self(_startCur.pos, _cur.pos)); 
+                if (check_keyword(slice_self(_startCur.pos, _cur.pos))) {
+                    add_token_and_reset(_lastKwd, _startCur, slice_self(_startCur.pos, _cur.pos));
+                }
+                else {
+                    add_token_and_reset(TokenType::WORD, _startCur, slice_self(_startCur.pos, _cur.pos)); 
+                }
                 return 0;
             }
             else if (isalnum(cur_char())) {}

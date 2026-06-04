@@ -228,6 +228,77 @@ public:
     }
 };
 
+
+template <class ...T>
+class StructDecl: public TemplateSeq<T...> {
+public:
+    std::array<CExpr*, sizeof...(T)> _subexprs;
+    
+    size_t _index;
+    
+    StructDecl(Parser &p, T ...subexprs): TemplateSeq<T...>(p, NodeType::Struct, subexprs...) {
+    }
+   
+    Node* eval(Tokenizer &t) const override {
+#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
+        Node v(NodeType::Struct);
+        auto initPos = t.get_pos();
+        for (auto subexpr: _subexprs) {
+            Node *res = subexpr->eval(t);
+            if (!res) {
+                _EXIT(false);
+            }
+            v.children.push_back(res);
+        }
+        if (v.children.size() < 2) {
+            std::cerr << "Error in class StructDet: Expected subexpr size to be at least 2" << std::endl;
+            _EXIT(false);
+        }
+        
+        auto structName = v.children[1];
+        if (structName->type != NodeType::Leaf || structName->get_tok().type != TokenType::WORD) {
+            std::cerr << "Error in class StructDet: Expected second token of struct declatration to be TokenType::WORD" << std::endl;
+            _EXIT(false);
+        }
+        
+        if (this->_p.has_decltype(structName->get_tok().text)) {
+            std::cerr<<"Error in class StructDet: Redeclaration of type `"<<structName->get_tok().text<<"`"<<std::endl;
+            _EXIT(false);
+        }
+
+        this->_p.add_new_decltype(structName->get_tok().text);
+        _EXIT(true);
+#undef _EXIT
+    }
+};
+
+class TypeDecl: public TemplateSeq<T...> {
+public:
+    TypeDecl(Parser &p, T ...subexprs): TemplateSeq<T...>(p, NodeType::Struct, subexprs...) {}
+
+    Node* eval(Tokenizer &t) const override {
+#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
+        Node v(this->_nodeType);
+        auto initPos = t.get_pos();
+
+        for (auto subexpr: _subexprs) {
+            Node *res = subexpr->eval(t);
+            if (!res) {
+                _EXIT(false);
+            }
+            v.children.push_back(res);
+        }
+
+        
+        
+        _EXIT(true);
+#undef _EXIT
+    }
+
+}
+
+
+
 class Or: public Expr {
 public:
 

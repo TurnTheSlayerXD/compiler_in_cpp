@@ -1,7 +1,11 @@
 #include <iostream>
 
-int main() {
 
-    
-    int a = 1+-1;
+int *fuu() {
+    int a;
+    return &a;
+}
+
+int main() {
+    *fuu()+1 = 1;
 }
