@@ -126,18 +126,35 @@ int main() {
 
     auto expr = p.or_(assign, rvalue, lvalue)
         ->set_name("expr");
+
+    auto typespecStar = p.or_(MUL, p.seq(NodeType::TypespecStar, MUL, "typespec_star"))
+        ->set_name("typespec_star");
+    auto typespecSubscr = p.or_(
+        p.seq(NodeType::TypespecSubscr, L_SUBSCR, p.opt(NUM_INT), R_SUBSCR, "typespec_subscr"), 
+        p.seq(NodeType::TypespecSubscr, L_SUBSCR, p.opt(NUM_INT), R_SUBSCR))
+        ->set_name("typespec_subscr");
+    
+    auto typeuse = p.typeuse(NodeType::TypeUse, p.opt(KWD_CONST), WORD, p.opt(typespecStar));
+
+    auto varDecl = p.seq(NodeType::VarDecl, typeuse, WORD, p.opt(typespecSubscr));
+    
+    auto varDeclWithAssign = p.or_(p.seq(NodeType::VarDecl, varDecl, ASSIGN, rvalue), varDecl);
+
+    auto statement = p.seq(NodeType::Statement, p.or_(varDeclWithAssign, expr), SEMICOLON);
+
 //______cycle check______
-    bool isCycled = p.detect_cycles(expr);
+    bool isCycled = p.detect_cycles(statement);
     
     if (isCycled) {
         std::cout << "________________________________________" << std::endl;
-        std::cout << "WARNING: DETECTED CYCLES IN EXPR" << std::endl;
+        std::cout << "WARNING: DETECTED CYCLES IN NODE PROVIDED" << std::endl;
         std::cout << "________________________________________" << std::endl;
         return 69;
     }
-//______end______
 
-    Node *root = expr->eval(tokenizer);
+    
+//______end______
+    Node *root = statement->eval(tokenizer);
     Destruct d([&root](){ delete root; });
 
     if (root && tokenizer.eof()) {

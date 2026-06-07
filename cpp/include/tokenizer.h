@@ -38,6 +38,7 @@
     X("}",  R_CURL)
 
 #define MACRO_KWDS\
+    X("const", KWD_CONST)\
     X("return", KWD_RET)\
     X("struct", KWD_STRUCT)\
     X("for",    KWD_FOR)\
@@ -79,6 +80,7 @@ enum class TokenType {
     R_SUBSCR,
     L_CURL,
     R_CURL,
+    KWD_CONST,
     KWD_RET,
     KWD_STRUCT,
     KWD_FOR,
@@ -126,6 +128,7 @@ std::string_view to_string(TokenType t) {
         case AND : return "`&&`";
         case OR : return "`||`";
         case ADDR : return "`&`";
+        case KWD_CONST : return "`const`";
         case KWD_RET : return "`return`";
         case KWD_STRUCT : return "`struct`";
         case KWD_FOR : return "`for`";

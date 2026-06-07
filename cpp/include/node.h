@@ -12,13 +12,10 @@ enum class NodeType {
 
     Op_Call,
     Op_Call_Brace,
-    Op_Call_Brace_Seq,
 
     Op_Comma,
-    Op_Comma_Seq,
 
     Subscr,
-    Subscr_Seq,
     Op_Subscr,
 
     Leaf,
@@ -27,7 +24,12 @@ enum class NodeType {
 
     Lvalue,
 
-    Struct,
+    StructDecl,
+    TypespecStar,
+    TypespecSubscr,
+    TypeUse,
+    VarDecl,
+    Statement,
 };
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
@@ -40,20 +42,21 @@ std::string_view to_string(NodeType tp) {
 
         case Op_Call: return "Call op";
         case Op_Comma: return "Comma op";
-        case Op_Comma_Seq: return "Comma seq";
         case Op_Call_Brace: return "Call braces";
-        case Op_Call_Brace_Seq: return "Seq Call braces";
-        
         
         case Subscr: return "Subscript";
-        case Subscr_Seq: return "Subscript seq";
         case Op_Subscr: return "Subscript op";
 
         case Assignment: return "Assignment";
 
         case Lvalue: return "Lvalue";
 
-        case Struct: return "Struct decl";
+        case StructDecl : return "Struct decl";
+        case TypespecStar : return "Typespec *";
+        case TypespecSubscr : return "Typespec []";
+        case TypeUse : return "Typeuse";
+        case VarDecl : return "Var decl";
+        case Statement : return "Statement";
 
         default: assert(false && "Unexpected"); return "";
     }

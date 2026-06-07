@@ -23,6 +23,7 @@ struct PtrStorage {
     }
 };
 
+
 struct NamedStorage {    
     struct ExprWithName {
         std::string_view name;
@@ -44,6 +45,10 @@ public:
     PtrStorage<Term> _termSt;
     PtrStorage<Seq> _seqSt;
     PtrStorage<Or> _orSt;
+
+    std::unique_ptr<StructDecl> _structdeclSt;
+    std::unique_ptr<TypeUse> _typeuseSt;
+    
     NamedStorage _namedStorage;
 
     Parser() {}
@@ -228,75 +233,14 @@ public:
     }
 };
 
-
-template <class ...T>
-class StructDecl: public TemplateSeq<T...> {
-public:
-    std::array<CExpr*, sizeof...(T)> _subexprs;
-    
-    size_t _index;
-    
-    StructDecl(Parser &p, T ...subexprs): TemplateSeq<T...>(p, NodeType::Struct, subexprs...) {
+template <class T>
+bool _eq(const T& lhs, const T& rhs) {
+    if (lhs.size() != rhs.size()) return false;
+    for (size_t = 0; i < lhs.size(); ++i) {
+        if (lhs.at(i) != rhs.at(i)) return false;
     }
-   
-    Node* eval(Tokenizer &t) const override {
-#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
-        Node v(NodeType::Struct);
-        auto initPos = t.get_pos();
-        for (auto subexpr: _subexprs) {
-            Node *res = subexpr->eval(t);
-            if (!res) {
-                _EXIT(false);
-            }
-            v.children.push_back(res);
-        }
-        if (v.children.size() < 2) {
-            std::cerr << "Error in class StructDet: Expected subexpr size to be at least 2" << std::endl;
-            _EXIT(false);
-        }
-        
-        auto structName = v.children[1];
-        if (structName->type != NodeType::Leaf || structName->get_tok().type != TokenType::WORD) {
-            std::cerr << "Error in class StructDet: Expected second token of struct declatration to be TokenType::WORD" << std::endl;
-            _EXIT(false);
-        }
-        
-        if (this->_p.has_decltype(structName->get_tok().text)) {
-            std::cerr<<"Error in class StructDet: Redeclaration of type `"<<structName->get_tok().text<<"`"<<std::endl;
-            _EXIT(false);
-        }
-
-        this->_p.add_new_decltype(structName->get_tok().text);
-        _EXIT(true);
-#undef _EXIT
-    }
-};
-
-class TypeDecl: public TemplateSeq<T...> {
-public:
-    TypeDecl(Parser &p, T ...subexprs): TemplateSeq<T...>(p, NodeType::Struct, subexprs...) {}
-
-    Node* eval(Tokenizer &t) const override {
-#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
-        Node v(this->_nodeType);
-        auto initPos = t.get_pos();
-
-        for (auto subexpr: _subexprs) {
-            Node *res = subexpr->eval(t);
-            if (!res) {
-                _EXIT(false);
-            }
-            v.children.push_back(res);
-        }
-
-        
-        
-        _EXIT(true);
-#undef _EXIT
-    }
-
-}
-
+    return true;
+} 
 
 
 class Or: public Expr {
@@ -378,6 +322,123 @@ public:
     }
 };
 
+template <size_t D, class ...U>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, const char *name, U ...rest) {
+    dst[_index++] = p.named_ref(name);
+    _append(dst, p, index+1, rest...);
+}
+
+template <size_t D, class ...U>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, CExpr *expr, U ...rest) {
+    dst[_index++] = expr;
+    _append(dst, p, index+1, rest...);
+}
+
+template <size_t D, class ...U>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, TokenType tokType, U ...rest) {
+    dst[_index++] = p.term(tokType);
+    _append(dst, p, index+1, rest...);
+}
+
+class Opt: public Expr {
+public:
+    Opt(Parser &p): Expr(p){}
+    virtual CExpr* at(size_t index) const = 0;
+    virtual size_t size(size_t index) const = 0;
+    virtual bool eq(const Opt& rhs) const = 0;
+};
+
+template <class ...T>
+class OptTemplate: public Opt {
+public;
+    std::array<CExpr*, 1> _subexprs;
+
+    Opt(Parser &p, T ...subexprs): Expr(p) {
+        static_assert(sizeof...(T) == 1);
+        _append(_subexprs, p, 0, subexprs...);
+    }
+    
+    Node* eval(Tokenizer &t) const override {
+#define _EXIT_EVAL(ARG) if (ARG) { return v; } else { t.reset_pos(initPos); delete v; return nullptr; }
+        auto initPos = t.get_pos();
+        Node *v = _subexprs[0]->eval(t);
+        if (v) {
+            _EXIT_EVAL(true);
+        }
+        _EXIT_EVAL(false);
+    }
+};
+
+
+template <class ...T>
+class StructDecl: public Expr {
+public:
+    std::array<CExpr*, sizeof...(T)> _subexprs;
+    size_t _index;
+    
+    StructDecl(Parser &p, T ...subexprs): Expr(p) {
+        _append(subexprs, subexprs...);
+    }
+
+    Node* eval(Tokenizer &t) const override {
+#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
+        Node v(NodeType::Struct);
+        auto initPos = t.get_pos();
+        for (auto subexpr: _subexprs) {
+            Node *res = subexpr->eval(t);
+            if (!res) {
+                _EXIT(false);
+            }
+            v.children.push_back(res);
+        }
+        if (v.children.size() < 2 || v.children[1]->type != NodeType::Leaf || v.children[1]->get_tok().type != TokenType::WORD) {
+            p.add_msg("Error in class StructDecl: Expected second token of struct declatration to be TokenType::WORD");
+            _EXIT(false);
+        }
+
+        auto nodeStructName = v.children[1];
+        if (this->_p.has_decltype(nodeStructName->get_tok().text)) {
+            p.add_msg("Error in class StructDet: Redeclaration of type `", nodeStructName->get_tok().text, "`");
+            _EXIT(false);
+        }
+
+        this->_p.add_new_decltype(nodeStructName->get_tok().text);
+        _EXIT(true);
+#undef _EXIT
+    }
+};
+
+template <class ...T>
+class TypeUse: public Expr {
+public:
+    std::array<Expr*, sizeof...(T)>
+    TypeUse(Parser &p, T ...subexprs): Expr(p) {
+        _append(subexprs...);
+    }
+    Node* eval(Tokenizer &t) const override {
+#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
+        Node v(this->_nodeType);
+        auto initPos = t.get_pos();
+        for (auto subexpr: _subexprs) {
+            Node *res = subexpr->eval(t);
+            if (!res) {
+                _EXIT(false);
+            }
+            v.children.push_back(res);
+        }
+        if(v.children.size() < 1 || v.children[0]->type != NodeType::Leaf || v.children[0]->get_tok().type != TokenType::WORD) {
+            _EXIT(false);
+        }
+        auto nodeTypeName = v.children[0];
+        if (!this->_p.has_decltype(nodeTypeName->get_tok().text)) {
+            _EXIT(false);
+        }
+        _EXIT(true);
+#undef _EXIT
+    }
+}
+
+
 CExpr* Parser::named_ref(std::string_view exprName) {
     auto pos = std::find_if(_refSt._ptrs.begin(), _refSt._ptrs.end(), [&exprName](const auto &p) {
         return p->_exprName == exprName;
@@ -427,6 +488,37 @@ CExpr* Parser::or_(T ...subexprs) {
     }
     Or* newPtr = new TemplateOr<T...>(obj);
     _orSt._ptrs.push_back(newPtr);
+    return newPtr;
+}
+
+template <class ...T>
+CExpr* Parser::typeuse(T ...subexprs) {
+    
+    TypeUse<T...> obj(*this, subexprs...);
+    auto pos = std::find_if(_typeuseSt._ptrs.begin(), _typeuseSt._ptrs.end(), [&obj](const auto &p) { 
+        return obj.eq(*p);
+    });
+    if (pos != _typeuseSt._ptrs.end()) {
+        return *pos;
+    }
+    
+    
+    TypeUse* newPtr = new TypeUse<T...>(obj);
+    _typeuseSt._ptrs.push_back(newPtr);
+    return newPtr;
+}
+
+template <class ...T>
+CExpr* Parser::structdecl(T ...subexprs) {
+    StructDecl<T...> obj(*this, subexprs...);
+    auto pos = std::find_if(_structdeclSt._ptrs.begin(), _structdeclSt._ptrs.end(), [&obj](const auto &p) { 
+        return obj.eq(*p);
+    });
+    if (pos != _structdeclSt._ptrs.end()) {
+        return *pos;
+    }
+    StructDecl* newPtr = new StructDecl<T...>(obj);
+    _structdeclSt._ptrs.push_back(newPtr);
     return newPtr;
 }
 
