@@ -12,17 +12,56 @@ class RefExpr;
 class Term;
 class Seq;
 class Or;
+class Opt;
+class Any;
+class OneOrMore;
+class StructDecl;
+class TypeUse;
 
 template <class T>
 struct PtrStorage {
     std::vector<T*> _ptrs;
     ~PtrStorage() {
-        for (auto p: _ptrs) {
+        for (auto &p: _ptrs) {
             delete p;
+            p = nullptr;
         }
     }
 };
 
+template <class T>
+struct Ptr {
+private:
+    T* _ptr;
+public:
+    Ptr(): _ptr{nullptr} {}
+    Ptr(T *ptr): _ptr{ptr} {}
+
+    Ptr(const Ptr& rhs) = delete;
+    Ptr(Ptr&& rhs) noexcept {
+        _ptr = rhs._ptr;
+        rhs._ptr = nullptr;
+    }
+
+    Ptr& operator=(const Ptr& rhs) = delete;
+    
+    Ptr& operator=(Ptr&& rhs) noexcept {
+        Ptr garb(std::move(*this));
+        _ptr = rhs._ptr;
+        rhs._ptr = nullptr;
+        return *this;    
+    }
+
+
+    bool is_null() { return _ptr == nullptr;}
+    T* get_ptr(){ return _ptr;}  
+
+
+    ~Ptr() {
+        delete _ptr;
+        _ptr = nullptr;
+    }
+};
 
 struct NamedStorage {    
     struct ExprWithName {
@@ -45,13 +84,19 @@ public:
     PtrStorage<Term> _termSt;
     PtrStorage<Seq> _seqSt;
     PtrStorage<Or> _orSt;
+    PtrStorage<Opt> _optSt;
+    PtrStorage<Any> _anySt;
+    PtrStorage<OneOrMore> _oneOrMoreSt;
 
-    std::unique_ptr<StructDecl> _structdeclSt;
-    std::unique_ptr<TypeUse> _typeuseSt;
+    Ptr<StructDecl> _structdeclSt;
+    Ptr<TypeUse> _typeuseSt;
     
     NamedStorage _namedStorage;
 
-    Parser() {}
+    std::vector<std::string_view> _decltypes;
+    std::vector<std::string_view> _msgs;
+
+    Parser(): _decltypes({"int", "char", "void"})  {}
 
     Parser(const Parser &rhs) = delete;
     Parser(Parser &&rhs) = delete;
@@ -62,15 +107,32 @@ public:
 
     CExpr* term(TokenType tokType);
 
-    template <class ...T>
-    CExpr* seq(NodeType nodeType, T ...subexprs);
+    template <class ...T> CExpr* seq(NodeType nodeType, T ...subexprs);
+    template <class ...T> CExpr* or_(T ...subexprs);
+    template <class ...T> CExpr* opt(T ...subexprs);
+    template <class ...T> CExpr* any(T ...subexprs);
+    template <class ...T> CExpr* one_or_more(T ...subexprs);
+    
+    CExpr* structdecl();
+    CExpr* typeuse();
 
-    template <class ...T>
-    CExpr* or_(T ...subexprs);
 
     bool __recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered_set<CExpr*> &set, std::vector<std::string_view> &path);
 
     bool detect_cycles(CExpr* const e);
+
+    bool has_decltype(std::string_view nm) {
+        return std::find(_decltypes.begin(), _decltypes.end(), nm) != _decltypes.end();
+    }
+
+    void add_new_decltype(std::string_view nm) {
+        assert(std::find(_decltypes.begin(), _decltypes.end(), nm) == _decltypes.end() && "Type already exist");
+        _decltypes.push_back(nm);
+    }
+
+    void add_msg(std::string_view nm) {
+        _msgs.push_back(nm);
+    }
 };
 
 void NamedStorage::set_name(CExpr* expr, std::string_view name) {
@@ -132,26 +194,50 @@ public:
     Term(Parser &p, TokenType tokType): Expr(p), _nodeType{NodeType::Leaf}, _tokType{tokType} {}
 
     Node* eval(Tokenizer &t) const override {
-        Node *v = new Node(_nodeType);
-        bool ok = true;
+    #define _EXIT(ARG) if (ARG) { return new Node(_nodeType, tok); } else { t.reset_pos(initPos); return nullptr; }
         auto initPos = t.get_pos();
-        Destruct onDestruct([&ok, &v, &t, &initPos]{ if (!ok) { t.reset_pos(initPos); delete v; } });        
-
+        Token tok;
         if (t.eof()) {
-            ok = false;
-            return nullptr;
+            _EXIT(false);
         }
-
-        auto tok = t.next_token();
+        tok = t.next_token();
         if (tok.type != _tokType) {
-            ok = false;
-            return nullptr;
+            _EXIT(false);
         }
-
-        return new Node(_nodeType, tok); 
+        _EXIT(true);
+#undef _EXIT
     }
 
 };
+
+
+template <size_t D, class ...U>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, const char *name, U ...rest) {
+    dst[index] = p.named_ref(name);
+    _append(dst, p, index+1, rest...);
+}
+template <size_t D, class ...U>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, CExpr *expr, U ...rest) {
+    dst[index] = expr;
+    _append(dst, p, index+1, rest...);
+}
+template <size_t D, class ...U>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, TokenType tokType, U ...rest) {
+    dst[index] = p.term(tokType);
+    _append(dst, p, index+1, rest...);
+}
+template <size_t D>
+void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index) {
+    (void) dst, (void) p, (void) index;
+}
+template <class T>
+bool _eq(const T& lhs, const T& rhs) {
+    if (lhs.size() != rhs.size()) return false;
+    for (size_t i = 0; i < lhs.size(); ++i) {
+        if (lhs.at(i) != rhs.at(i)) return false;
+    }
+    return true;
+}
 
 class Seq: public Expr {
 public:
@@ -160,19 +246,10 @@ public:
     Seq(Parser &p, NodeType nodeType): Expr(p), _nodeType{nodeType}{}
     
     virtual CExpr* at(size_t index) const = 0;
-    
     virtual size_t size() const = 0;
     
     bool eq(const Seq& rhs) const {
-        if (size() != rhs.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < size(); ++i) {
-            if (at(i) != rhs.at(i)) {
-                return false;
-            }
-        }
-        return true;
+        return _eq(*this, rhs);
     }  
 };
 
@@ -181,10 +258,8 @@ class TemplateSeq: public Seq {
 public:
     std::array<CExpr*, sizeof...(T)> _subexprs;
     
-    size_t _index; 
-    
-    TemplateSeq(Parser &p, NodeType nodeType, T ...subexprs): Seq(p, nodeType), _index{0} {
-        append(subexprs...);
+    TemplateSeq(Parser &p, NodeType nodeType, T ...subexprs): Seq(p, nodeType) {
+        _append(_subexprs, p, 0, subexprs...);
     }
     
     Node* eval(Tokenizer &t) const override {
@@ -211,36 +286,8 @@ public:
         return sizeof...(T);
     }
     
-    template <class ...U>
-    void append(const char *name, U ...rest) {
-        _subexprs[_index++] = _p.named_ref(name);
-        append(rest...);
-    }
-    
-    template <class ...U>
-    void append(CExpr *expr, U ...rest) {
-        _subexprs[_index++] = expr;
-        append(rest...);
-    }
-    
-    template <class ...U>
-    void append(TokenType tokType, U ...rest) {
-        _subexprs[_index++] = _p.term(tokType);
-        append(rest...);
-    }
-    
-    void append() {
-    }
 };
 
-template <class T>
-bool _eq(const T& lhs, const T& rhs) {
-    if (lhs.size() != rhs.size()) return false;
-    for (size_t = 0; i < lhs.size(); ++i) {
-        if (lhs.at(i) != rhs.at(i)) return false;
-    }
-    return true;
-} 
 
 
 class Or: public Expr {
@@ -253,28 +300,17 @@ public:
     virtual size_t size() const = 0;
 
     bool eq(const Or& rhs) const {
-        if (size() != rhs.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < size(); ++i) {
-            if (at(i) != rhs.at(i)) {
-                return false;
-            }
-        }
-        return true;
+        return _eq(*this, rhs);
     }  
 };
 
 template <class ...T>
 class TemplateOr: public Or {
 public:
-
     std::array<CExpr*, sizeof...(T)> _subexprs;
     
-    size_t _index; 
-    
-    TemplateOr(Parser &p, T ...subexprs): Or(p), _index{0} {
-        append(subexprs...);
+    TemplateOr(Parser &p, T ...subexprs): Or(p) {
+        _append(_subexprs, p, 0, subexprs...);
     }
     
     Node* eval(Tokenizer &t) const override {
@@ -299,165 +335,192 @@ public:
     size_t size() const override {
         return sizeof...(T);
     }
-    
-    template <class ...U>
-    void append(const char *name, U ...rest) {
-        _subexprs[_index++] = _p.named_ref(name);
-        append(rest...);
-    }
-
-    template <class ...U>
-    void append(CExpr *expr, U ...rest) {
-        _subexprs[_index++] = expr;
-        append(rest...);
-    }
-
-    template <class ...U>
-    void append(TokenType tokType, U ...rest) {
-        _subexprs[_index++] = _p.term(tokType);
-        append(rest...);
-    }
-
-    void append() {
-    }
 };
 
-template <size_t D, class ...U>
-void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, const char *name, U ...rest) {
-    dst[_index++] = p.named_ref(name);
-    _append(dst, p, index+1, rest...);
-}
-
-template <size_t D, class ...U>
-void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, CExpr *expr, U ...rest) {
-    dst[_index++] = expr;
-    _append(dst, p, index+1, rest...);
-}
-
-template <size_t D, class ...U>
-void _append(std::array<const Expr*, D> &dst, Parser &p, size_t index, TokenType tokType, U ...rest) {
-    dst[_index++] = p.term(tokType);
-    _append(dst, p, index+1, rest...);
-}
 
 class Opt: public Expr {
 public:
     Opt(Parser &p): Expr(p){}
     virtual CExpr* at(size_t index) const = 0;
-    virtual size_t size(size_t index) const = 0;
-    virtual bool eq(const Opt& rhs) const = 0;
+    virtual size_t size() const = 0;
+    bool eq(const Opt& rhs) const { return _eq(*this, rhs); }
 };
 
 template <class ...T>
-class OptTemplate: public Opt {
-public;
+class TemplateOpt: public Opt {
+public:
     std::array<CExpr*, 1> _subexprs;
 
-    Opt(Parser &p, T ...subexprs): Expr(p) {
+    TemplateOpt(Parser& p, T ...subexprs): Opt(p) {
         static_assert(sizeof...(T) == 1);
         _append(_subexprs, p, 0, subexprs...);
     }
+
+    CExpr* at(size_t index) const override { return _subexprs[index]; }
+    size_t size() const override { return sizeof...(T); }
     
     Node* eval(Tokenizer &t) const override {
-#define _EXIT_EVAL(ARG) if (ARG) { return v; } else { t.reset_pos(initPos); delete v; return nullptr; }
         auto initPos = t.get_pos();
         Node *v = _subexprs[0]->eval(t);
         if (v) {
-            _EXIT_EVAL(true);
+            return v;
         }
-        _EXIT_EVAL(false);
+        t.reset_pos(initPos);
+        return node_plug();
     }
 };
 
-
-template <class ...T>
-class StructDecl: public Expr {
+class Any: public Expr {
 public:
-    std::array<CExpr*, sizeof...(T)> _subexprs;
-    size_t _index;
-    
-    StructDecl(Parser &p, T ...subexprs): Expr(p) {
-        _append(subexprs, subexprs...);
-    }
-
-    Node* eval(Tokenizer &t) const override {
-#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
-        Node v(NodeType::Struct);
-        auto initPos = t.get_pos();
-        for (auto subexpr: _subexprs) {
-            Node *res = subexpr->eval(t);
-            if (!res) {
-                _EXIT(false);
-            }
-            v.children.push_back(res);
-        }
-        if (v.children.size() < 2 || v.children[1]->type != NodeType::Leaf || v.children[1]->get_tok().type != TokenType::WORD) {
-            p.add_msg("Error in class StructDecl: Expected second token of struct declatration to be TokenType::WORD");
-            _EXIT(false);
-        }
-
-        auto nodeStructName = v.children[1];
-        if (this->_p.has_decltype(nodeStructName->get_tok().text)) {
-            p.add_msg("Error in class StructDet: Redeclaration of type `", nodeStructName->get_tok().text, "`");
-            _EXIT(false);
-        }
-
-        this->_p.add_new_decltype(nodeStructName->get_tok().text);
-        _EXIT(true);
-#undef _EXIT
-    }
+    Any(Parser &p): Expr(p){}
+    virtual CExpr* at(size_t index) const = 0;
+    virtual size_t size() const = 0;
+    bool eq(const Any& rhs) const { return _eq(*this, rhs); }
 };
 
 template <class ...T>
+class TemplateAny: public Any {
+public:
+    std::array<CExpr*, 1> _subexprs;
+
+    TemplateAny(Parser& p, T ...subexprs): Any(p) {
+        static_assert(sizeof...(T) == 1);
+        _append(_subexprs, p, 0, subexprs...);
+    }
+
+    CExpr* at(size_t index) const override { return _subexprs[index]; }
+    size_t size() const override { return sizeof...(T); }
+    
+    Node* eval(Tokenizer &t) const override {
+        auto pos = t.get_pos();
+        Node newV(NodeType::Any);
+        auto subexpr = _subexprs[0];
+        while(true) {
+            if (t.eof()) {
+                break;
+            }
+            auto v = subexpr->eval(t);
+            if (v) {
+                newV.children.push_back(v);
+                pos = t.get_pos();
+            }
+            else {
+                t.reset_pos(pos);
+                break;
+            }
+        }
+        return new Node(std::move(newV));
+    }
+};
+
+class OneOrMore: public Expr {
+public:
+    OneOrMore(Parser &p): Expr(p){}
+    virtual CExpr* at(size_t index) const = 0;
+    virtual size_t size() const = 0;
+    bool eq(const OneOrMore& rhs) const { return _eq(*this, rhs); }
+};
+
+template <class ...T>
+class TemplateOneOrMore: public OneOrMore {
+public:
+    std::array<CExpr*, 1> _subexprs;
+    TemplateOneOrMore(Parser& p, T ...subexprs): OneOrMore(p) {
+        static_assert(sizeof...(T) == 1);
+        _append(_subexprs, p, 0, subexprs...);
+    }
+    CExpr* at(size_t index) const override { return _subexprs[index]; }
+    size_t size() const override { return sizeof...(T); }
+    
+    Node* eval(Tokenizer &t) const override {
+        auto pos = t.get_pos();
+        auto subexpr = _subexprs[0];
+        if (t.eof()) {
+            return nullptr;
+        }
+        auto v = subexpr->eval(t);
+        if (!v) {
+            t.reset_pos(pos);
+            return nullptr;
+        }
+        pos = t.get_pos();
+        Node newV(NodeType::OneOrMore);
+        newV.children.push_back(v);
+        while(true) {
+            if (t.eof()) {
+                break;
+            }
+            auto v = subexpr->eval(t);
+            if (v) {
+                newV.children.push_back(v);
+                pos = t.get_pos();
+            }
+            else {
+                break;
+            }
+        }
+        t.reset_pos(pos);
+        return new Node(std::move(newV));
+    }
+};
+
+
 class TypeUse: public Expr {
 public:
-    std::array<Expr*, sizeof...(T)>
-    TypeUse(Parser &p, T ...subexprs): Expr(p) {
-        _append(subexprs...);
-    }
+    TypeUse(Parser &p): Expr(p) {}
     Node* eval(Tokenizer &t) const override {
-#define _EXIT(ARG) if (ARG) { return new Node(std::move(v)); } else { t.reset_pos(initPos); return nullptr; }
-        Node v(this->_nodeType);
+#define _EXIT(ARG) if (ARG) { return new Node(NodeType::Leaf, tok); } else { t.reset_pos(initPos); return nullptr; }
         auto initPos = t.get_pos();
-        for (auto subexpr: _subexprs) {
-            Node *res = subexpr->eval(t);
-            if (!res) {
-                _EXIT(false);
-            }
-            v.children.push_back(res);
-        }
-        if(v.children.size() < 1 || v.children[0]->type != NodeType::Leaf || v.children[0]->get_tok().type != TokenType::WORD) {
+        Token tok;
+        if (t.eof()) {
             _EXIT(false);
         }
-        auto nodeTypeName = v.children[0];
-        if (!this->_p.has_decltype(nodeTypeName->get_tok().text)) {
+        tok = t.next_token();
+        if (tok.type != TokenType::WORD || !_p.has_decltype(tok.text)) {
             _EXIT(false);
         }
+
         _EXIT(true);
 #undef _EXIT
     }
-}
+};
+
+class StructDecl: public Expr {
+public:
+    StructDecl(Parser &p): Expr(p) {}
+    Node* eval(Tokenizer &t) const override {
+#define _EXIT(ARG) if (ARG) { return new Node(NodeType::Leaf, tok); } else { t.reset_pos(initPos); return nullptr; }
+        auto initPos = t.get_pos();
+        Token tok;
+        if (t.eof()) {
+            _EXIT(false);
+        }
+        tok = t.next_token();
+        if (tok.type != TokenType::WORD) {
+            _EXIT(false);
+        }
+        if (_p.has_decltype(tok.text)) {
+            _EXIT(false);
+        }
+
+        _p.add_new_decltype(tok.text);
+        _EXIT(true);
+#undef _EXIT
+    }
+};
 
 
 CExpr* Parser::named_ref(std::string_view exprName) {
-    auto pos = std::find_if(_refSt._ptrs.begin(), _refSt._ptrs.end(), [&exprName](const auto &p) {
-        return p->_exprName == exprName;
-    });
-    if (pos != _refSt._ptrs.end()) {
-        return *pos;
-    }
+    auto pos = std::find_if(_refSt._ptrs.begin(), _refSt._ptrs.end(), [&exprName](const auto &p) { return p->_exprName == exprName; });
+    if (pos != _refSt._ptrs.end()) return *pos;
     RefExpr* newRef = new RefExpr(*this, exprName);
     _refSt._ptrs.push_back(newRef);
     return newRef;
 }
     
 CExpr* Parser::term(TokenType tokType) {
-    auto pos = std::find_if(_termSt._ptrs.begin(), _termSt._ptrs.end(), [&tokType](const auto &p) {
-        return p->_tokType == tokType;
-    });
-    if (pos != _termSt._ptrs.end()) {
-        return *pos;
-    }
+    auto pos = std::find_if(_termSt._ptrs.begin(), _termSt._ptrs.end(), [&tokType](const auto &p) { return p->_tokType == tokType; });
+    if (pos != _termSt._ptrs.end()) return *pos;
     Term* newTerm = new Term(*this, tokType);
     _termSt._ptrs.push_back(newTerm);
     return newTerm;
@@ -466,110 +529,97 @@ CExpr* Parser::term(TokenType tokType) {
 template <class ...T>
 CExpr* Parser::seq(NodeType nodeType, T ...subexprs) {
     TemplateSeq<T...> obj(*this, nodeType, subexprs...);
-    auto pos = std::find_if(_seqSt._ptrs.begin(), _seqSt._ptrs.end(), [&obj](const auto &p) { 
-        return obj.eq(*p);
-    });
-    if (pos != _seqSt._ptrs.end()) {
-        return *pos;
-    }
+    auto pos = std::find_if(_seqSt._ptrs.begin(), _seqSt._ptrs.end(), [&obj](const auto &p) { return obj.eq(*p); });
+    if (pos != _seqSt._ptrs.end()) return *pos;
     Seq* newPtr = new TemplateSeq<T...>(obj);
     _seqSt._ptrs.push_back(newPtr);
     return newPtr;
 }
 
-template <class ...T>
-CExpr* Parser::or_(T ...subexprs) {
-    TemplateOr<T...> obj(*this, subexprs...);
-    auto pos = std::find_if(_orSt._ptrs.begin(), _orSt._ptrs.end(), [&obj](const auto &p) { 
-        return obj.eq(*p);
-    });
-    if (pos != _orSt._ptrs.end()) {
-        return *pos;
+
+#define PREPR_CR(FUN, TEMPL, STOR, TYPE)\
+    template <class ...T> CExpr* Parser::FUN(T ...subexprs) { \
+        TEMPL<T...> obj(*this, subexprs...); \
+        auto pos = std::find_if(STOR._ptrs.begin(), STOR._ptrs.end(), [&obj](const auto &p) { return obj.eq(*p); }); \
+        if (pos != STOR._ptrs.end()) return *pos; \
+        TYPE* newPtr = new TEMPL<T...>(obj); \
+        STOR._ptrs.push_back(newPtr); \
+        return newPtr; \
     }
-    Or* newPtr = new TemplateOr<T...>(obj);
-    _orSt._ptrs.push_back(newPtr);
-    return newPtr;
+
+PREPR_CR(or_, TemplateOr, _orSt, Or)
+PREPR_CR(opt, TemplateOpt, _optSt, Opt)
+PREPR_CR(any, TemplateAny, _anySt, Any)
+PREPR_CR(one_or_more, TemplateOneOrMore, _oneOrMoreSt, OneOrMore)
+
+#undef PREPR_CR
+
+
+CExpr* Parser::typeuse() {
+    if (!_typeuseSt.is_null()) return _typeuseSt.get_ptr();
+    _typeuseSt = Ptr<TypeUse>(new TypeUse(*this));
+    return _typeuseSt.get_ptr();
 }
 
-template <class ...T>
-CExpr* Parser::typeuse(T ...subexprs) {
-    
-    TypeUse<T...> obj(*this, subexprs...);
-    auto pos = std::find_if(_typeuseSt._ptrs.begin(), _typeuseSt._ptrs.end(), [&obj](const auto &p) { 
-        return obj.eq(*p);
-    });
-    if (pos != _typeuseSt._ptrs.end()) {
-        return *pos;
-    }
-    
-    
-    TypeUse* newPtr = new TypeUse<T...>(obj);
-    _typeuseSt._ptrs.push_back(newPtr);
-    return newPtr;
-}
-
-template <class ...T>
-CExpr* Parser::structdecl(T ...subexprs) {
-    StructDecl<T...> obj(*this, subexprs...);
-    auto pos = std::find_if(_structdeclSt._ptrs.begin(), _structdeclSt._ptrs.end(), [&obj](const auto &p) { 
-        return obj.eq(*p);
-    });
-    if (pos != _structdeclSt._ptrs.end()) {
-        return *pos;
-    }
-    StructDecl* newPtr = new StructDecl<T...>(obj);
-    _structdeclSt._ptrs.push_back(newPtr);
-    return newPtr;
+CExpr* Parser::structdecl() {
+    if (!_structdeclSt.is_null()) return _structdeclSt.get_ptr();
+    _structdeclSt = Ptr<StructDecl>(new StructDecl(*this));
+    return _structdeclSt.get_ptr();
 }
 
 bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered_set<CExpr*> &set,std::vector<std::string_view> &path) {
-    if (expr == nullptr) {
+    if (!expr) {
         assert(false && "Faced nullptr!");
         return false;
     }
+
     if (set.contains(expr)) {
         path.push_back(_namedStorage.try_find_name(expr));
         return true;
     }
-    const Seq *seq = dynamic_cast<const Seq*>(expr);
+
+    const TypeUse *typeuse = dynamic_cast<const TypeUse*>(expr);
+    if (typeuse) {
+        std::cout << "Typeuse found" << std::endl;
+    }
+
+    const Seq *seq = dynamic_cast<const Seq*>(expr); 
     if (seq) {
         set.insert(expr);
-
         if (seq->size() == 0) {
-            assert(false && "Faced seq of size = 0");
-        }
-        
-        CExpr *child = seq->at(0);
-        bool isCycleInChild = __recurs_check_cycles(child, expr, set, path);
-        if (isCycleInChild) {
-            path.push_back(_namedStorage.try_find_name(expr));
-        }
+            assert(false && "Faced seq of size = 0"); 
+        } 
+        CExpr *child = (seq)->at(0); 
+        bool isCycleInChild = __recurs_check_cycles(child, expr, set, path); 
+        if (isCycleInChild) { 
+            path.push_back(_namedStorage.try_find_name(expr)); 
+        } 
+        set.erase(expr); 
+        return isCycleInChild; 
+    } 
     
-        set.erase(expr);
-    
-        return isCycleInChild;
-    }
-
-    const Or *or_ = dynamic_cast<const Or*>(expr);
-    if (or_) {
-        set.insert(expr);
-
-        if (or_->size() == 0) {
-            assert(false && "Faced seq of size = 0");
+#define _PREPR_SHORTCUT(TYPE, VAR) \
+        const TYPE *VAR = dynamic_cast<const TYPE*>(expr); \
+        if (VAR) { \
+            set.insert(expr); \
+            for (size_t i = 0; i < VAR->size(); ++i) { \
+                CExpr *child = VAR->at(i); \
+                bool isCycleInChild = __recurs_check_cycles(child, expr, set, path);  \
+                if (isCycleInChild) { \
+                    path.push_back(_namedStorage.try_find_name(expr)); \
+                    return true; \
+                } \
+            } \
+            set.erase(expr); \
+            return false; \
         }
 
-        for (size_t i = 0; i < or_->size(); ++i) {
-            CExpr *child = or_->at(i);
-            bool isCycleInChild = __recurs_check_cycles(child, expr, set, path); 
-            if (isCycleInChild) {
-                path.push_back(_namedStorage.try_find_name(expr));
-                return true;
-            }
-        }
+    _PREPR_SHORTCUT(Or, or_)
+    _PREPR_SHORTCUT(Opt, opt)
+    _PREPR_SHORTCUT(Any, any)
+    _PREPR_SHORTCUT(OneOrMore, oneOrMore)
 
-        set.erase(expr);
-        return false;
-    }
+#undef _PREPR_SHORTCUT
 
     const Term* term = dynamic_cast<const Term*>(expr);
     if (term) {

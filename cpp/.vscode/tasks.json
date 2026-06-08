@@ -3,7 +3,7 @@
     "tasks": [
         {
             "label": "build",
-            "command": "nmake all /nologo",
+            "command": "nmake gdb /nologo",
             "args": [],
             "type": "shell",
             "problemMatcher": [],

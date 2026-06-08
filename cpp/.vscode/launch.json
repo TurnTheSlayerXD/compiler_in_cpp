@@ -8,7 +8,7 @@
             "name": "Launch",
             "type": "lldb",
             "request": "launch",
-            "program": "out.exe",
+            "program": "gdb_out.exe",
             "args": [],
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "build"

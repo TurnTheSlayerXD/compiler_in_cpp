@@ -6,6 +6,9 @@
 #include <tokenizer.h>
 
 enum class NodeType {
+    Plug,
+
+
     Op_Bin,
     Op_Un,
     Brace,
@@ -29,7 +32,15 @@ enum class NodeType {
     TypespecSubscr,
     TypeUse,
     VarDecl,
+    VarDeclWithAssign,
     Statement,
+
+    FunDecl,
+    ForStatement,
+    IfStatement,
+
+    Any,
+    OneOrMore,
 };
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
@@ -56,7 +67,18 @@ std::string_view to_string(NodeType tp) {
         case TypespecSubscr : return "Typespec []";
         case TypeUse : return "Typeuse";
         case VarDecl : return "Var decl";
+        case VarDeclWithAssign: return "Var decl with assignment";
         case Statement : return "Statement";
+
+        case Plug: return "Plug";
+
+        case FunDecl: return "FunDecl";
+
+        case ForStatement: return "For";
+        case IfStatement: return "If";
+        
+        case Any: return "Any";
+        case OneOrMore: return "OneOrMore";
 
         default: assert(false && "Unexpected"); return "";
     }
@@ -77,7 +99,12 @@ std::ostream& operator<<(std::ostream& o, NodeType type) {
 
 struct NodePrintOpts {
     size_t indentStep = 4;
-} po;
+    std::string_view newLine = "\n\r";
+};
+NodePrintOpts _PO;
+
+struct Node;
+static Node* node_plug();
 
 struct Node {
 
@@ -93,12 +120,15 @@ public:
 
     Node(const Node& rhs) = delete;
     Node(Node&& rhs) noexcept = default;
-    Node& operator =(const Node& rhs) = delete;
-    Node& operator =(Node&& rhs) = delete;
+    Node& operator=(const Node& rhs) = delete;
+    Node& operator=(Node&& rhs) = delete;
 
     ~Node() {
-        for (auto child: children) {
-            delete child;
+        for (auto &child: children) {
+            if (child != node_plug()) {
+                delete child;
+            }
+            child = nullptr;    
         }
     }
 
@@ -113,7 +143,8 @@ public:
         return ::to_string(type);
     }
 
-    std::string get_str_repr() {
+    std::string get_str_repr(NodePrintOpts opts = { .indentStep = 4, .newLine = "\n\r" }) {
+        _PO = opts;
         std::string buf;
         _print(0, this, buf);
         return buf;
@@ -129,19 +160,26 @@ public:
         set_indent(indent, buf);
         buf += v->to_string();
         if (v->children.size() > 0) {
-            buf += ": {";
-            buf += "\n\r";
+            buf += std::string_view(": {");
+            buf += _PO.newLine;
             for (auto child: v->children) {
-                _print(indent + po.indentStep, child, buf);
+                _print(indent + _PO.indentStep, child, buf);
             }
             set_indent(indent, buf);
-            buf += "},\n\r";
+            buf += std::string_view("},");
+            buf += _PO.newLine;
         }
         else {
-            buf += ",\n\r"; 
+            buf += std::string_view(",");
+            buf += _PO.newLine; 
         }
     }
 
 };
+
+static Node _plugSt(NodeType::Plug);
+static Node* node_plug() {
+    return &_plugSt;
+}
 
 #endif

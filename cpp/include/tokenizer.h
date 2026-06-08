@@ -140,7 +140,10 @@ std::string_view to_string(TokenType t) {
         case KWD_SWITCH : return "`switch`";
         case KWD_CASE : return "`case`";
         case SEMICOLON : return "`;`";
-        default: { fprintf(stderr, "to_string not implemented for: [%d]\n", static_cast<int>(t)); assert(false && "UNREACHABLE"); return "";}
+        case L_CURL: return "`{`";
+        case R_CURL: return "`}`";
+
+        default: { fprintf(stderr, "\nTo_string not implemented for: [%d]\n", static_cast<int>(t)); assert(false && "UNREACHABLE"); return "";}
     }
 }
 
@@ -180,7 +183,7 @@ struct Token {
 // };
 
 std::ostream& operator<<(std::ostream& str, Token t) {
-    str << "Token" << t.type << "," << " " << "`" << t.text << "`";
+    str << "Token " << t.type << "," << " " << "`" << t.text << "`";
     return str;
 }
 
@@ -392,7 +395,7 @@ public:
             if (reached_end()) _state = State::INVALID;
             else if (cur_char() == '\\') return 2;
             else if (cur_char() == '\'') {
-                add_token_and_reset(TokenType::CHAR, _startCur, slice_self(_startCur.pos, _cur.pos));
+                add_token_and_reset(TokenType::CHAR, _startCur, slice_self(_startCur.pos+1, _cur.pos));
             }
             break;
 
@@ -400,7 +403,7 @@ public:
             if (reached_end()) _state = State::INVALID;
             else if (cur_char() == '\\') return 2;
             else if (cur_char() == '\"') {
-                add_token_and_reset(TokenType::STRING, _startCur, slice_self(_startCur.pos, _cur.pos));
+                add_token_and_reset(TokenType::STRING, _startCur, slice_self(_startCur.pos+1, _cur.pos));
             }
             break;
 
