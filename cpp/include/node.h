@@ -36,16 +36,28 @@ enum class NodeType {
     Statement,
 
     FunDecl,
+    
     ForStatement,
+    WhileStatement,
+    
     IfStatement,
 
+    IfBranch,
+    ElseIfBranch,
+    ElseBranch,
+    
     Any,
     OneOrMore,
+
+
 };
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
     switch (tp) {
         case Leaf: return "Leaf";
+        case Any: return "Any";
+        case OneOrMore: return "OneOrMore";
+
         case Brace: return "Brace";
 
         case Op_Bin: return "Bin Op";
@@ -75,10 +87,12 @@ std::string_view to_string(NodeType tp) {
         case FunDecl: return "FunDecl";
 
         case ForStatement: return "For";
-        case IfStatement: return "If";
-        
-        case Any: return "Any";
-        case OneOrMore: return "OneOrMore";
+        case WhileStatement: return "While";
+
+        case IfStatement : return "IfStatement";
+        case IfBranch : return "If";
+        case ElseIfBranch : return "Else If";
+        case ElseBranch : return "Else";
 
         default: assert(false && "Unexpected"); return "";
     }

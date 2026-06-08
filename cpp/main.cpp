@@ -24,16 +24,22 @@ int main() {
     // const char* prog = "fuu(1, 3, bar(21321, aboba))[1] + amogus(asd );";
 
 
-    // const char *prog = 
-    // "int main(int argc, const char* aboba, int x[], char** argv) {"
-    // "    for (int i = 0; i < argc; i = i + 1) {"
-    // "        printf(fmt, argv[i]);"
-    // "        printf(fmt, argv[i]);"
-    // "        printf(fmt, argv[i]);"
-    // "    }"
-    // "}";
 
-    const char *prog = "fu[0]((0), (1) )()()[0];";
+    const char *prog = 
+    "int main(int argc, const char* aboba, int x[], char** argv) {"
+    "    for (int i = 0; i < argc; i = i + 1) {"
+    "    while (1) { "
+    "        if(x > 4) { "
+    "            print(suka); "
+    "        } "
+    "        else { "
+    "            go_fuck_urself(6)[9]; "
+    "        } "
+    "    } "
+    "    }"
+    "}";
+
+    // const char *prog = "fu[0]((0), (1) )()()[0];";
 
     Tokenizer tokenizer(prog);
 
@@ -43,7 +49,7 @@ int main() {
             std::cerr << "________________________________________________" << std::endl;
             std::cerr << tokenizer._errMsg << std::endl;
             std::cerr << "________________________________________________" << std::endl;
-            break;
+            return 69;
         }
     }
 

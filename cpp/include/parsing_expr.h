@@ -69,10 +69,20 @@ CExpr* get_parsing_expr(Parser& p) {
     auto forStatement = p.seq(NodeType::ForStatement, 
         KWD_FOR, L_BR, semiStatement, expr, SEMICOLON, expr, R_BR, L_CURL, "statement_any", R_CURL);
 
-    auto ifStatement = p.seq(NodeType::IfStatement, 
-        KWD_IF, L_BR, expr, R_BR, L_CURL, "statement_any", R_CURL);
+    auto whileStatement = p.seq(NodeType::WhileStatement, 
+        KWD_WHILE, L_BR, expr, R_BR, L_CURL, "statement_any", R_CURL);
 
-    auto singleStatement = p.or_(semiStatement, forStatement, ifStatement);
+    auto ifStatement = p.seq(NodeType::IfStatement, 
+        p.seq(NodeType::IfBranch, KWD_IF, L_BR, expr, R_BR, L_CURL, "statement_any", R_CURL),
+        p.any(
+            p.seq(NodeType::ElseIfBranch, KWD_ELSE, KWD_IF, L_BR, expr, R_BR, L_CURL, "statement_any", R_CURL)
+        ),
+        p.opt(
+            p.seq(NodeType::ElseBranch, KWD_ELSE, L_CURL, "statement_any", R_CURL)
+        )
+    );
+
+    auto singleStatement = p.or_(semiStatement, forStatement, whileStatement, ifStatement);
 
     auto statementAny = p.any(singleStatement
         )->set_name("statement_any");

@@ -194,7 +194,7 @@ public:
     Term(Parser &p, TokenType tokType): Expr(p), _nodeType{NodeType::Leaf}, _tokType{tokType} {}
 
     Node* eval(Tokenizer &t) const override {
-    #define _EXIT(ARG) if (ARG) { return new Node(_nodeType, tok); } else { t.reset_pos(initPos); return nullptr; }
+#define _EXIT(ARG) if (ARG) { return new Node(_nodeType, tok); } else { t.reset_pos(initPos); return nullptr; }
         auto initPos = t.get_pos();
         Token tok;
         if (t.eof()) {
@@ -243,7 +243,7 @@ class Seq: public Expr {
 public:
     NodeType _nodeType;
     
-    Seq(Parser &p, NodeType nodeType): Expr(p), _nodeType{nodeType}{}
+    Seq(Parser &p, NodeType nodeType): Expr(p), _nodeType{nodeType} { }
     
     virtual CExpr* at(size_t index) const = 0;
     virtual size_t size() const = 0;
@@ -253,29 +253,24 @@ public:
     }  
 };
 
-template <class ...T>
+template <size_t N>
 class TemplateSeq: public Seq {
 public:
-    std::array<CExpr*, sizeof...(T)> _subexprs;
+    std::array<CExpr*, N> _subexprs;
     
-    TemplateSeq(Parser &p, NodeType nodeType, T ...subexprs): Seq(p, nodeType) {
-        _append(_subexprs, p, 0, subexprs...);
-    }
-    
+    TemplateSeq(Parser &p, NodeType nodeType): Seq(p, nodeType) { }
+
     Node* eval(Tokenizer &t) const override {
-        Node *v = new Node(_nodeType);
-        bool ok = true;
+        Node v(_nodeType);
         auto initPos = t.get_pos();
-        Destruct onDestruct([&ok, &v, &t, &initPos]{ if (!ok) { t.reset_pos(initPos); delete v; } });        
         for (auto subexpr: _subexprs) {
             Node *res = subexpr->eval(t);
             if (!res) {
-                ok = false;
-                return nullptr;
+                t.reset_pos(initPos); return nullptr;
             }
-            v->children.push_back(res);
+            v.children.push_back(res);
         }
-        return v;
+        return new Node(std::move(v));
     }
     
     CExpr* at(size_t index) const override {
@@ -283,20 +278,15 @@ public:
     }
     
     size_t size() const override {
-        return sizeof...(T);
+        return N;
     }
     
 };
 
-
-
 class Or: public Expr {
 public:
-
     Or(Parser &p): Expr(p){}
-
     virtual CExpr* at(size_t index) const = 0;
-
     virtual size_t size() const = 0;
 
     bool eq(const Or& rhs) const {
@@ -304,19 +294,14 @@ public:
     }  
 };
 
-template <class ...T>
+template <size_t N>
 class TemplateOr: public Or {
 public:
-    std::array<CExpr*, sizeof...(T)> _subexprs;
-    
-    TemplateOr(Parser &p, T ...subexprs): Or(p) {
-        _append(_subexprs, p, 0, subexprs...);
-    }
+    std::array<CExpr*, N> _subexprs;
+    TemplateOr(Parser &p): Or(p) {}
     
     Node* eval(Tokenizer &t) const override {
-        bool ok = true;
         auto initPos = t.get_pos();
-        Destruct onDestruct([&ok, &t, &initPos]{ if (!ok) { t.reset_pos(initPos); }  });        
         for (auto subexpr: _subexprs) {
             Node *res = subexpr->eval(t);
             if (res) {
@@ -324,17 +309,11 @@ public:
             }
             t.reset_pos(initPos);
         }
-        ok = false;
         return nullptr;
     }
 
-    CExpr* at(size_t index) const override {
-        return _subexprs[index];
-    }
-
-    size_t size() const override {
-        return sizeof...(T);
-    }
+    CExpr* at(size_t index) const override { return _subexprs[index]; }
+    size_t size() const override { return N; }
 };
 
 
@@ -346,18 +325,15 @@ public:
     bool eq(const Opt& rhs) const { return _eq(*this, rhs); }
 };
 
-template <class ...T>
+template <size_t N>
 class TemplateOpt: public Opt {
 public:
-    std::array<CExpr*, 1> _subexprs;
+    std::array<CExpr*, N> _subexprs;
 
-    TemplateOpt(Parser& p, T ...subexprs): Opt(p) {
-        static_assert(sizeof...(T) == 1);
-        _append(_subexprs, p, 0, subexprs...);
-    }
+    TemplateOpt(Parser& p): Opt(p) { static_assert(N == 1); }
 
     CExpr* at(size_t index) const override { return _subexprs[index]; }
-    size_t size() const override { return sizeof...(T); }
+    size_t size() const override { return N; }
     
     Node* eval(Tokenizer &t) const override {
         auto initPos = t.get_pos();
@@ -378,19 +354,12 @@ public:
     bool eq(const Any& rhs) const { return _eq(*this, rhs); }
 };
 
-template <class ...T>
+template <size_t N>
 class TemplateAny: public Any {
 public:
-    std::array<CExpr*, 1> _subexprs;
+    std::array<CExpr*, N> _subexprs;
+    TemplateAny(Parser& p): Any(p) { static_assert(N == 1); }
 
-    TemplateAny(Parser& p, T ...subexprs): Any(p) {
-        static_assert(sizeof...(T) == 1);
-        _append(_subexprs, p, 0, subexprs...);
-    }
-
-    CExpr* at(size_t index) const override { return _subexprs[index]; }
-    size_t size() const override { return sizeof...(T); }
-    
     Node* eval(Tokenizer &t) const override {
         auto pos = t.get_pos();
         Node newV(NodeType::Any);
@@ -411,6 +380,9 @@ public:
         }
         return new Node(std::move(newV));
     }
+    
+    CExpr* at(size_t index) const override { return _subexprs[index]; }
+    size_t size() const override { return N; }
 };
 
 class OneOrMore: public Expr {
@@ -421,16 +393,11 @@ public:
     bool eq(const OneOrMore& rhs) const { return _eq(*this, rhs); }
 };
 
-template <class ...T>
+template <size_t N>
 class TemplateOneOrMore: public OneOrMore {
 public:
-    std::array<CExpr*, 1> _subexprs;
-    TemplateOneOrMore(Parser& p, T ...subexprs): OneOrMore(p) {
-        static_assert(sizeof...(T) == 1);
-        _append(_subexprs, p, 0, subexprs...);
-    }
-    CExpr* at(size_t index) const override { return _subexprs[index]; }
-    size_t size() const override { return sizeof...(T); }
+    std::array<CExpr*, N> _subexprs;
+    TemplateOneOrMore(Parser& p): OneOrMore(p) { static_assert(N == 1); }
     
     Node* eval(Tokenizer &t) const override {
         auto pos = t.get_pos();
@@ -462,8 +429,10 @@ public:
         t.reset_pos(pos);
         return new Node(std::move(newV));
     }
-};
 
+    CExpr* at(size_t index) const override { return _subexprs[index]; }
+    size_t size() const override { return N; }
+};
 
 class TypeUse: public Expr {
 public:
@@ -528,10 +497,11 @@ CExpr* Parser::term(TokenType tokType) {
 
 template <class ...T>
 CExpr* Parser::seq(NodeType nodeType, T ...subexprs) {
-    TemplateSeq<T...> obj(*this, nodeType, subexprs...);
+    TemplateSeq<sizeof...(subexprs)> obj(*this, nodeType);
+    _append(obj._subexprs, *this, 0, subexprs...);
     auto pos = std::find_if(_seqSt._ptrs.begin(), _seqSt._ptrs.end(), [&obj](const auto &p) { return obj.eq(*p); });
     if (pos != _seqSt._ptrs.end()) return *pos;
-    Seq* newPtr = new TemplateSeq<T...>(obj);
+    Seq* newPtr = new TemplateSeq<sizeof...(subexprs)>(obj);
     _seqSt._ptrs.push_back(newPtr);
     return newPtr;
 }
@@ -539,10 +509,11 @@ CExpr* Parser::seq(NodeType nodeType, T ...subexprs) {
 
 #define PREPR_CR(FUN, TEMPL, STOR, TYPE)\
     template <class ...T> CExpr* Parser::FUN(T ...subexprs) { \
-        TEMPL<T...> obj(*this, subexprs...); \
+        TEMPL<sizeof...(subexprs)> obj(*this); \
+        _append(obj._subexprs, *this, 0, subexprs...); \
         auto pos = std::find_if(STOR._ptrs.begin(), STOR._ptrs.end(), [&obj](const auto &p) { return obj.eq(*p); }); \
         if (pos != STOR._ptrs.end()) return *pos; \
-        TYPE* newPtr = new TEMPL<T...>(obj); \
+        TYPE* newPtr = new TEMPL<sizeof...(subexprs)>(obj); \
         STOR._ptrs.push_back(newPtr); \
         return newPtr; \
     }

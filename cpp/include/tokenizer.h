@@ -373,6 +373,11 @@ public:
         return false;
     }
 
+
+    bool is_word_char(char c) {
+        return isalpha(c) || c == '_';
+    }
+
     size_t manage_state() {
         switch (_state) {
         case State::START:
@@ -380,7 +385,7 @@ public:
             else if (cur_char() == '.') _state = State::DOT;
             else if (cur_char() == '\'') _state = State::SINGLE_QUOTE;
             else if (cur_char() == '"') _state = State::DOUBLE_QUOTE;
-            else if (isalpha(cur_char())) _state = State::WORD;
+            else if (is_word_char(cur_char())) _state = State::WORD;
             else if (isdigit(cur_char())) _state = State::NUM;
             else if (cur_char() == '#') _state = State::PREPR;
             else if (lookup_for_sep()) {
@@ -417,7 +422,7 @@ public:
                 }
                 return 0;
             }
-            else if (isalnum(cur_char())) {}
+            else if (isalnum(cur_char()) || cur_char() == '_') {}
             else _state = State::INVALID;
             break;
 
