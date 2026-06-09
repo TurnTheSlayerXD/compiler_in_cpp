@@ -38,17 +38,18 @@
     X("}",  R_CURL)
 
 #define MACRO_KWDS\
-    X("const", KWD_CONST)\
-    X("return", KWD_RET)\
-    X("struct", KWD_STRUCT)\
-    X("for",    KWD_FOR)\
-    X("while",  KWD_WHILE)\
-    X("break",  KWD_BREAK)\
-    X("do",     KWD_DO)\
-    X("if",     KWD_IF)\
-    X("else",   KWD_ELSE)\
-    X("switch", KWD_SWITCH)\
-    X("case",   KWD_CASE)
+    X("const",    KWD_CONST)\
+    X("return",   KWD_RET)\
+    X("struct",   KWD_STRUCT)\
+    X("for",      KWD_FOR)\
+    X("while",    KWD_WHILE)\
+    X("break",    KWD_BREAK)\
+    X("continue", KWD_CONTINUE)\
+    X("do",       KWD_DO)\
+    X("if",       KWD_IF)\
+    X("else",     KWD_ELSE)\
+    X("switch",   KWD_SWITCH)\
+    X("case",     KWD_CASE)
     
 enum class TokenType {
     ASSIGN,
@@ -86,6 +87,7 @@ enum class TokenType {
     KWD_FOR,
     KWD_WHILE,
     KWD_BREAK,
+    KWD_CONTINUE,
     KWD_DO,
     KWD_IF,
     KWD_ELSE,
@@ -134,6 +136,7 @@ std::string_view to_string(TokenType t) {
         case KWD_FOR : return "`for`";
         case KWD_WHILE : return "`while`";
         case KWD_BREAK : return "`break`";
+        case KWD_CONTINUE : return "`continue`";
         case KWD_DO : return "`do`";
         case KWD_IF : return "`if`";
         case KWD_ELSE : return "`else`";

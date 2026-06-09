@@ -39,6 +39,8 @@ enum class NodeType {
     
     ForStatement,
     WhileStatement,
+    Break,
+    Continue,
     
     IfStatement,
 
@@ -48,8 +50,6 @@ enum class NodeType {
     
     Any,
     OneOrMore,
-
-
 };
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
@@ -93,6 +93,9 @@ std::string_view to_string(NodeType tp) {
         case IfBranch : return "If";
         case ElseIfBranch : return "Else If";
         case ElseBranch : return "Else";
+
+        case Break: return "Break";
+        case Continue: return "Continue";
 
         default: assert(false && "Unexpected"); return "";
     }

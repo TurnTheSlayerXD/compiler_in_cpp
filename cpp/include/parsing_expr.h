@@ -63,7 +63,7 @@ CExpr* get_parsing_expr(Parser& p) {
     
     auto varDeclWithAssign = p.seq(NodeType::VarDeclWithAssign, varDecl, ASSIGN, rvalue);
 
-    auto semiStatement = p.seq(NodeType::Statement, p.or_(varDeclWithAssign, varDecl, expr), SEMICOLON);
+    auto semiStatement = p.seq(NodeType::Statement, p.or_(varDeclWithAssign, varDecl, expr, KWD_BREAK, KWD_CONTINUE), SEMICOLON);
 
 
     auto forStatement = p.seq(NodeType::ForStatement, 
