@@ -156,8 +156,11 @@ public:
         return tok;
     }
 
-    std::string_view to_string() {
-        return ::to_string(type);
+    std::string to_string() {
+        if (type == NodeType::Leaf) {
+            return std::string(::to_string(type)) + " `"+ std::string(tok.text) + "`";
+        }
+        return std::string(::to_string(type));
     }
 
     std::string get_str_repr(NodePrintOpts opts = { .indentStep = 4, .newLine = "\n\r" }) {

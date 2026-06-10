@@ -23,23 +23,24 @@ int main() {
 
     // const char* prog = "fuu(1, 3, bar(21321, aboba))[1] + amogus(asd );";
 
+    const char *prog = "int* x = ((b + 3) == 5) && (x < 6);";
 
 
-    const char *prog = 
-    "int main(int argc, const char* aboba, int x[], char** argv) { "
-    "    for (int i = 0; i < argc; i = i + 1) { "
-    "       while (1) { "
-    "           if(x > 4) { "
-    "               print(suka); "
-    "               break; "
-    "           } "
-    "           else { "
-    "               go_fuck_urself(6)[9]; "
-    "           } "
-    "       } "
-    "    } "
-    "    continue; "
-    "}";
+    // const char *prog = 
+    // "int main(int argc, const char* aboba, int x[], char** argv) { "
+    // "    for (int i = 0; i < argc; i = i + 1) { "
+    // "       while (1) { "
+    // "           if(x > 4) { "
+    // "               print(suka); "
+    // "               break; "
+    // "           } "
+    // "           else { "
+    // "               go_fuck_urself(6)[9]; "
+    // "           } "
+    // "       } "
+    // "    } "
+    // "    continue; "
+    // "}";
 
     // const char *prog = "fu[0]((0), (1) )()()[0];";
 
@@ -56,8 +57,7 @@ int main() {
     }
 
     for (auto t : tokenizer._tokens) {
-        std::cout << t << std::endl;
-        // std::println("{}", t);
+        // std::cout << t << std::endl;
     }
 
     tokenizer.reset_pos(TokPos{.index = 0});

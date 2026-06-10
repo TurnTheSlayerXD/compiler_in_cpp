@@ -4,8 +4,6 @@
 CExpr* get_parsing_expr(Parser& p) {
     using enum TokenType;
 
-    auto opSign = p.or_(PLUS, MINUS, MUL, DIV, GR, LE, GR_E, LE_E, EQ, AND, OR);
-
     auto operand = p.or_("brace", WORD, NUM_INT, NUM_FLOAT);
 
     auto unOp = p.or_(
@@ -14,13 +12,15 @@ CExpr* get_parsing_expr(Parser& p) {
     )
     ->set_name("un_op");
 
+    auto binSigns = p.or_(AND, OR, GR, LE, GR_E, LE_E, EQ, PLUS, MINUS, MUL, DIV);
+
     auto binOp = p.seq(
         NodeType::Op_Bin,
-    /**/p.or_(unOp, operand), opSign, "rvalue"/**/
+         p.or_(unOp, operand), binSigns, "rvalue"
     )->set_name("bin_op");
 
-    auto brace = p.seq( NodeType::Brace,
-    /**/L_BR, "expr", R_BR/**/
+    auto brace = p.seq(NodeType::Brace,
+    /**/L_BR, "rvalue", R_BR/**/
     )->set_name("brace");
     (void)(brace);
 
