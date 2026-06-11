@@ -23,8 +23,7 @@ int main() {
 
     // const char* prog = "fuu(1, 3, bar(21321, aboba))[1] + amogus(asd );";
 
-    const char *prog = "int* x = ((b + 3) == 5) && (x < 6);";
-
+    const char *prog = " x = b + 3 == 5 && x < 6;";
 
     // const char *prog = 
     // "int main(int argc, const char* aboba, int x[], char** argv) { "
