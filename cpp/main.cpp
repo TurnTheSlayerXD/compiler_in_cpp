@@ -10,6 +10,8 @@
 #include <tokenizer.h>
 #include <help.h>
 
+#include <sort_op_nodes.h>
+
 
 int main() {
     // Tokenizer tokenizer("((a) + (b * d)) * (d + 69) ");
@@ -23,7 +25,9 @@ int main() {
 
     // const char* prog = "fuu(1, 3, bar(21321, aboba))[1] + amogus(asd );";
 
-    const char *prog = " x = b + 3 == 5 && x < 6;";
+    // const char *prog = " x = b + 3 == 5 && x < 6;";
+    const char *prog = "5 - x + a * d && c * 3 < 2 || (69 * 68);";
+
 
     // const char *prog = 
     // "int main(int argc, const char* aboba, int x[], char** argv) { "
@@ -56,6 +60,7 @@ int main() {
     }
 
     for (auto t : tokenizer._tokens) {
+        (void) t;
         // std::cout << t << std::endl;
     }
 
@@ -69,6 +74,9 @@ int main() {
     }
 
     Node *root = expr->eval(tokenizer);
+
+    sort_Op_Bin_nodes(&root);
+
     Destruct d([&root](){ delete root; });
 
     if (root && tokenizer.eof()) {

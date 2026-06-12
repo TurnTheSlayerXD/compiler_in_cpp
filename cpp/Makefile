@@ -9,7 +9,9 @@ INCLUDE=\
 ./include/node.h\
 ./include/parser.h\
 ./include/help.h\
-./include/parsing_expr.h
+./include/parsing_expr.h\
+./include/sort_op_nodes.h
+
 
 $(OUT): $(SRC) $(INCLUDE)
 	$(CC) -o $(OUT) $(FLAGS) -I./include $(SRC)

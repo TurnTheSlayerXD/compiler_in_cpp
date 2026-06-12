@@ -4,19 +4,20 @@
 CExpr* get_parsing_expr(Parser& p) {
     using enum TokenType;
 
-    auto operand = p.or_("brace", WORD, NUM_INT, NUM_FLOAT);
+    auto operand = p.or_("call_op", "un_op", "brace", WORD, NUM_INT, NUM_FLOAT);
 
     auto unOp = p.or_(
-        "call_op", 
-        p.seq(NodeType::Op_Un, p.or_(PLUS, MINUS, MUL, ADDR, INCR, DECR), p.or_("un_op", operand))
+        p.seq(NodeType::Op_Un, p.or_(PLUS, MINUS, MUL, ADDR, INCR, DECR), operand)
     )
     ->set_name("un_op");
+
+    (void) unOp;
 
     auto binSigns = p.or_(AND, OR, GR, LE, GR_E, LE_E, EQ, PLUS, MINUS, MUL, DIV);
 
     auto binOp = p.seq(
         NodeType::Op_Bin,
-         p.or_(unOp, operand), binSigns, "rvalue"
+         operand, binSigns, "rvalue"
     )->set_name("bin_op");
 
     auto brace = p.seq(NodeType::Brace,
@@ -38,15 +39,15 @@ CExpr* get_parsing_expr(Parser& p) {
     auto callOp = 
         p.seq (
             NodeType::Op_Call,
-            operand, callBraces
+            p.or_("brace", WORD, NUM_INT, NUM_FLOAT), callBraces
     )->set_name("call_op"); 
     (void)(callOp);
 
 
-    auto rvalue = p.or_(binOp, unOp, operand)
+    auto rvalue = p.or_(binOp, operand)
     ->set_name("rvalue");
 
-    auto lvalue = p.or_(p.seq(NodeType::Lvalue, MUL, p.or_(unOp, operand)), operand);
+    auto lvalue = p.or_(p.seq(NodeType::Lvalue, MUL, operand), WORD);
 
     auto assign = p.seq(NodeType::Assignment, lvalue, ASSIGN, rvalue);
 

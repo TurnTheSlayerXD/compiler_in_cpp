@@ -126,14 +126,14 @@ static Node* node_plug();
 struct Node {
 
     std::vector<Node*> children;
-    NodeType type;
+    const NodeType type;
     
 private:
-    Token tok;
+    const Token tok;
 
 public:
-    Node(NodeType type): type{type} {}
-    Node(NodeType type, Token relatedToken): type{type}, tok{relatedToken} {}
+    Node(NodeType type): type{type}, tok{} {}
+    Node(NodeType type, Token relatedToken): type{type}, tok{relatedToken} { assert(type == NodeType::Leaf); }
 
     Node(const Node& rhs) = delete;
     Node(Node&& rhs) noexcept = default;
