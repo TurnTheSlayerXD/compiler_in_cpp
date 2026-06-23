@@ -1,5 +1,5 @@
 CC=clang++
-FLAGS=-std=c++20 -Wall -Wextra -Wpedantic -O2
+FLAGS=-std=c++20 -Wall -Wextra -Wpedantic
 SRC=main.cpp
 OUT=out.exe
 OUT_GDB=gdb_out.exe
@@ -10,7 +10,7 @@ INCLUDE=\
 ./include/parser.h\
 ./include/help.h\
 ./include/parsing_expr.h\
-./include/sort_op_nodes.h
+./include/tree_preprocessing.h
 
 
 $(OUT): $(SRC) $(INCLUDE)
@@ -23,11 +23,13 @@ $(OUT_GDB): $(SRC) $(INCLUDE)
 
 gdb: $(OUT_GDB)
 
-ASM=asm.txt
-$(ASM): $(SRC) $(INCLUDE)
-	$(CC) -o $(ASM) -S -std=c++23 -O2 -I./include $(SRC)
+test.asm: ./test.c
+	clang -o test.asm -S test.c
 
-asm: $(ASM)
+to_asm: test.asm
+
+exe_from_asm:
+	clang -o test.exe ./test.asm
 
 prepr: 
 	$(CC) -o main.txt -E $(FLAGS) -I./include $(SRC)

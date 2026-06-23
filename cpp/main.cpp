@@ -1,7 +1,7 @@
 #include <iostream>
 #include <array>
 #include <unordered_set>
-#include <print>
+#include <fstream>
 
 #include <node.h>
 #include <parser.h>
@@ -10,45 +10,33 @@
 #include <tokenizer.h>
 #include <help.h>
 
-#include <sort_op_nodes.h>
+#include <tree_preprocessing.h>
+
+const char *line = "\n____________________________________________________________\n";
 
 
 int main() {
-    // Tokenizer tokenizer("((a) + (b * d)) * (d + 69) ");
-    // Tokenizer tokenizer("(fuu( fuu(asdasdasd), 2, 3) * (asdasdsa + 1)(69)) + ((asdasd)() + 1 * 2)");
-
-    // if (argc < 2) {
-    //     std::cerr << "No args were provided" << std::endl;
-    //     return 69;
-    // }
-    // const char *str = argv[1];
-
-    // const char* prog = "fuu(1, 3, bar(21321, aboba))[1] + amogus(asd );";
-
-    // const char *prog = " x = b + 3 == 5 && x < 6;";
-    const char *prog = "5 - x + a * d && c * 3 < 2 || (69 * 68);";
-
-
-    // const char *prog = 
-    // "int main(int argc, const char* aboba, int x[], char** argv) { "
-    // "    for (int i = 0; i < argc; i = i + 1) { "
-    // "       while (1) { "
-    // "           if(x > 4) { "
-    // "               print(suka); "
-    // "               break; "
-    // "           } "
-    // "           else { "
-    // "               go_fuck_urself(6)[9]; "
-    // "           } "
-    // "       } "
-    // "    } "
-    // "    continue; "
-    // "}";
+    // const char *prog = "int* x = 1;";
+    const char *prog = 
+    "char fuu(int argc) { }"
+    "int main(int argc, const char* aboba, int x[], char** argv) { "
+    "    for (int i = 0; i < argc; i = i + 1) { "
+    "       while (1) { "
+    "           if(x > 4) { "
+    "               print(suka); "
+    "               break; "
+    "           } "
+    "           else { "
+    "               go_fuck_urself(6)[9]; "
+    "           } "
+    "       } "
+    "    } "
+    "    continue; "
+    "}";
 
     // const char *prog = "fu[0]((0), (1) )()()[0];";
 
     Tokenizer tokenizer(prog);
-
     while (!tokenizer.eof()) {
         tokenizer.next_token();
         if (tokenizer._errBit) {
@@ -58,50 +46,49 @@ int main() {
             return 69;
         }
     }
-
-    for (auto t : tokenizer._tokens) {
-        (void) t;
-        // std::cout << t << std::endl;
-    }
-
     tokenizer.reset_pos(TokPos{.index = 0});
 
-    Parser p;
+    std::printf("Tokens%s", line);
+    for (auto t : tokenizer._tokens) {
+        std::cout << t << std::endl;
+    }
+    std::printf("%sEnd Tokens%s", line, line);
 
-    CExpr *expr = get_parsing_expr(p);
+    Parser p;
+    CExpr *expr = init_parsing_expr(p);
     if (!expr) {
         return 69;
     }
 
     Node *root = expr->eval(tokenizer);
-
-    sort_Op_Bin_nodes(&root);
-
     Destruct d([&root](){ delete root; });
 
-    if (root && tokenizer.eof()) {
-        auto res = root->get_str_repr({.indentStep = 4});
-        std::cout << res << std::endl;
-    }
-    else if (!tokenizer.eof()) {
-        
-        std::cout << "____________________________________________________________" << std::endl;
-        std::cout << "Invalid parser state: Not all tokens were consumed" << std::endl;
-
+    if (!tokenizer.eof()) {
+        std::cerr << "____________________________________________________________" << std::endl;
+        std::cerr << "Invalid parser state: Not all tokens were consumed" << std::endl;
         if (root) {
             auto res = root->get_str_repr({.indentStep=0});
-            std::cout << res << std::endl;
+            std::cerr << res << std::endl;
         }
-
-        std::cout << "END of invalid parser state" << std::endl;
-        std::cout << "____________________________________________________________" << std::endl;
-
+        std::cerr << "END of invalid parser state" << std::endl;
+        std::cerr << "____________________________________________________________" << std::endl;
         return 69;
     }
-    else {
+
+    if (!root) {
         std::cout << "Invalid expr or bug in Parser!" << std::endl;
         return 69;
     }
+
+    preprocess_tree(&root);
+
+
+
+    std::ofstream os("./__tree_ast.txt", std::ios::out);
+    auto res = root->get_str_repr({.indentStep = 4, .newLine="\n"});
+    os << res << std::endl;
+
+    std::cout << res << std::endl;
 
     return 0;
 }

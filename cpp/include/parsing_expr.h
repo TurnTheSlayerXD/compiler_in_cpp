@@ -1,7 +1,7 @@
 #ifndef PARSING_EXPR_H
 #define PARSING_EXPR_H
 
-CExpr* get_parsing_expr(Parser& p) {
+CExpr* init_parsing_expr(Parser& p) {
     using enum TokenType;
 
     auto operand = p.or_("call_op", "un_op", "brace", WORD, NUM_INT, NUM_FLOAT);
@@ -58,14 +58,13 @@ CExpr* get_parsing_expr(Parser& p) {
 
     auto typespecSubscr = p.any(p.seq(NodeType::TypespecSubscr, L_SUBSCR, p.opt(NUM_INT), R_SUBSCR));
     
-    auto typeinfer = p.seq(NodeType::TypeUse, p.opt(KWD_CONST), p.typeuse(), p.opt(typespecStar));
+    auto typeinfer = p.seq(NodeType::TypeUse, p.opt(KWD_CONST)->set_name("opt kwd const"), p.typeuse(), p.opt(typespecStar))->set_name("typeinfer");
 
-    auto varDecl = p.seq(NodeType::VarDecl, typeinfer, WORD, p.opt(typespecSubscr));
+    auto varDecl = p.seq(NodeType::VarDecl, typeinfer, WORD, p.opt(typespecSubscr))->set_name("var_decl");
     
-    auto varDeclWithAssign = p.seq(NodeType::VarDeclWithAssign, varDecl, ASSIGN, rvalue);
+    auto varDeclWithAssign = p.seq(NodeType::VarDeclWithAssign, varDecl, ASSIGN, rvalue)->set_name("var_decl_with_assign");
 
-    auto semiStatement = p.seq(NodeType::Statement, p.or_(varDeclWithAssign, varDecl, expr, KWD_BREAK, KWD_CONTINUE), SEMICOLON);
-
+    auto semiStatement = p.seq(NodeType::Statement, p.or_(varDeclWithAssign, varDecl, expr, KWD_BREAK, KWD_CONTINUE)->set_name("without_semi_statement"), SEMICOLON)->set_name("semi_statement");
 
     auto forStatement = p.seq(NodeType::ForStatement, 
         KWD_FOR, L_BR, semiStatement, expr, SEMICOLON, expr, R_BR, L_CURL, "statement_any", R_CURL);
@@ -83,7 +82,7 @@ CExpr* get_parsing_expr(Parser& p) {
         )
     );
 
-    auto singleStatement = p.or_(semiStatement, forStatement, whileStatement, ifStatement);
+    auto singleStatement = p.or_(semiStatement, forStatement, whileStatement, ifStatement)->set_name("single_statement");
 
     auto statementAny = p.any(singleStatement
         )->set_name("statement_any");
@@ -96,11 +95,11 @@ CExpr* get_parsing_expr(Parser& p) {
         L_BR, p.opt(funDeclArgs), R_BR
     );
 
-    auto funDecl = p.seq(NodeType::FunDecl, typeinfer, WORD, funDeclBraces, SEMICOLON);
+    auto funDecl = p.seq(NodeType::FunDecl, typeinfer, WORD, funDeclBraces, SEMICOLON)->set_name("fun_decl");
 
-    auto funDeclWithBody = p.seq(NodeType::FunDecl, typeinfer, WORD, funDeclBraces, L_CURL, statementAny, R_CURL);
+    auto funDeclWithBody = p.seq(NodeType::FunDecl, typeinfer, WORD, funDeclBraces, L_CURL, statementAny, R_CURL)->set_name("fun_decl_with_body");
 
-    auto _final = p.or_(funDecl, funDeclWithBody, statementAny);
+    auto _final = p.one_or_more(p.or_(funDecl, funDeclWithBody, singleStatement)->set_name("or_fun_or_funbody_or_singlestatement"))->set_name("_final");
 //______cycle check______
     bool isCycled = p.detect_cycles(_final);
     

@@ -6,7 +6,6 @@ struct NodeWithParent {
     Node *p;
 };
 
-
 int get_order_of_op_node(Node *v) {
     assert(v != nullptr);
     assert(v->type == NodeType::Op_Bin);
@@ -99,6 +98,7 @@ void sort_Op_Bin_nodes(Node** root) {
         if (cur.v->type == NodeType::Op_Bin && (!cur.p || cur.p->type != NodeType::Op_Bin)) {
 
             #define DEBUG
+
             if (cur.p) {
                 #ifdef DEBUG
                 auto prevSet = assemble_nodes(cur.p);
@@ -109,7 +109,7 @@ void sort_Op_Bin_nodes(Node** root) {
                 *curPos = _sort_node_Op_Bin(cur.v);
 
                 #ifdef DEBUG
-                 auto afterSet = assemble_nodes(cur.p);
+                auto afterSet = assemble_nodes(cur.p);
                 assert(prevSet == afterSet);
                 #endif
             }
@@ -134,5 +134,62 @@ void sort_Op_Bin_nodes(Node** root) {
             }
         }
     }
+}
 
+void remove_Plug_nodes(Node **root) {
+    assert(root && *root);
+
+    std::vector<NodeWithParent> stack = { NodeWithParent{.v = *root, .p = nullptr} };
+
+    while (!stack.empty()) {
+        auto cur = stack.back();
+        stack.pop_back();
+        if (cur.v->type == NodeType::Plug) {
+            assert(cur.v->children.size() == 0 && "remove_Plug_nodes: Plug node should have ZERO children");
+            assert(cur.p && "remove_Plug_nodes: Plug node should have parent node");
+            auto pos = std::find(cur.p->children.begin(), cur.p->children.end(), cur.v);
+            assert(pos != cur.p->children.end() && "remove_Plug_nodes: expected child inside parent");
+            cur.p->children.erase(pos);
+            continue;
+        }
+        for (auto child: cur.v->children) {
+            stack.push_back({.v = child, .p = cur.v});
+        }
+    }
+}
+
+void remove_empty_Any_nodes(Node **root) {
+    assert(root && *root);
+    std::vector<NodeWithParent> stack = { NodeWithParent{.v = *root, .p = nullptr} };
+    while (!stack.empty()) {
+        auto cur = stack.back();
+        stack.pop_back();
+        
+        if (cur.v->type == NodeType::Any && cur.v->children.empty()) {
+            Destruct d{[&cur](){ delete cur.v; cur.v = nullptr; }};
+
+            if (!cur.p) {
+                assert (cur.v == *root);
+                *root = nullptr;
+                continue;
+            }
+
+            auto pos = std::find(cur.p->children.begin(), cur.p->children.end(), cur.v);
+            assert(pos != cur.p->children.end() && "remove_Plug_nodes: expected child inside parent");
+            cur.p->children.erase(pos);
+            
+            continue;
+        }
+        
+        for (auto child: cur.v->children) {
+            stack.push_back({.v = child, .p = cur.v});
+        }
+    }
+    
+}
+
+void preprocess_tree(Node **root) {
+    remove_Plug_nodes(root);
+    remove_empty_Any_nodes(root);
+    sort_Op_Bin_nodes(root);
 }

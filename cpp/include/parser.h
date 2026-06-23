@@ -117,7 +117,7 @@ public:
     CExpr* typeuse();
 
 
-    bool __recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered_set<CExpr*> &set, std::vector<std::string_view> &path);
+    bool __recurs_check_cycles(CExpr* expr, std::unordered_set<CExpr*> &set, std::vector<std::string_view> &path);
 
     bool detect_cycles(CExpr* const e);
 
@@ -133,6 +133,8 @@ public:
     void add_msg(std::string_view nm) {
         _msgs.push_back(nm);
     }
+
+    bool __can_reach(CExpr *v, std::vector<std::string_view> &path);
 };
 
 void NamedStorage::set_name(CExpr* expr, std::string_view name) {
@@ -364,6 +366,7 @@ public:
         auto pos = t.get_pos();
         Node newV(NodeType::Any);
         auto subexpr = _subexprs[0];
+        int count = 0;
         while(true) {
             if (t.eof()) {
                 break;
@@ -377,7 +380,13 @@ public:
                 t.reset_pos(pos);
                 break;
             }
+
+            count++;
+            if (count > 500) {
+                assert(false && "INFINITE LOOP");
+            }
         }
+
         return new Node(std::move(newV));
     }
     
@@ -413,6 +422,9 @@ public:
         pos = t.get_pos();
         Node newV(NodeType::OneOrMore);
         newV.children.push_back(v);
+
+
+        int count = 0;
         while(true) {
             if (t.eof()) {
                 break;
@@ -423,10 +435,19 @@ public:
                 pos = t.get_pos();
             }
             else {
+                t.reset_pos(pos);
                 break;
             }
+
+            count++;
+
+            if (count > 500) {
+                std::cout << "Typename of subexpr with INF LOOP" << ": [" << typeid(*_subexprs[0]).name() << "]" << std::endl;
+                std::cout << "Typename of subexpr with INF LOOP" << ": [" << newV.children[0]->type << "]" << std::endl;
+                assert(false && "INFINITE LOOP");
+            }
         }
-        t.reset_pos(pos);
+
         return new Node(std::move(newV));
     }
 
@@ -538,7 +559,8 @@ CExpr* Parser::structdecl() {
     return _structdeclSt.get_ptr();
 }
 
-bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered_set<CExpr*> &set,std::vector<std::string_view> &path) {
+bool Parser::__recurs_check_cycles(CExpr* expr, std::unordered_set<CExpr*> &set, std::vector<std::string_view> &path) {
+
     if (!expr) {
         assert(false && "Faced nullptr!");
         return false;
@@ -552,6 +574,7 @@ bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered
     const TypeUse *typeuse = dynamic_cast<const TypeUse*>(expr);
     if (typeuse) {
         std::cout << "Typeuse found" << std::endl;
+        return false;
     }
 
     const Seq *seq = dynamic_cast<const Seq*>(expr); 
@@ -561,7 +584,7 @@ bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered
             assert(false && "Faced seq of size = 0"); 
         } 
         CExpr *child = (seq)->at(0); 
-        bool isCycleInChild = __recurs_check_cycles(child, expr, set, path); 
+        bool isCycleInChild = __recurs_check_cycles(child, set, path); 
         if (isCycleInChild) { 
             path.push_back(_namedStorage.try_find_name(expr)); 
         } 
@@ -575,7 +598,7 @@ bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered
             set.insert(expr); \
             for (size_t i = 0; i < VAR->size(); ++i) { \
                 CExpr *child = VAR->at(i); \
-                bool isCycleInChild = __recurs_check_cycles(child, expr, set, path);  \
+                bool isCycleInChild = __recurs_check_cycles(child, set, path);  \
                 if (isCycleInChild) { \
                     path.push_back(_namedStorage.try_find_name(expr)); \
                     return true; \
@@ -601,7 +624,7 @@ bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered
     if (ref) {
         set.insert(expr);
 
-        bool isCycleInChild = __recurs_check_cycles(ref->get_real_expr(), par, set, path);
+        bool isCycleInChild = __recurs_check_cycles(ref->get_real_expr(), set, path);
         if (isCycleInChild) {
             path.push_back(ref->_exprName);
         }
@@ -619,13 +642,137 @@ bool Parser::__recurs_check_cycles(CExpr* expr, CExpr* const par, std::unordered
 bool Parser::detect_cycles(CExpr* e) {
     std::unordered_set<CExpr*> set;
     std::vector<std::string_view> path;
-    bool isCycleInChild = __recurs_check_cycles(e, nullptr, set, path);
+    bool isCycleInChild = __recurs_check_cycles(e, set, path);
     if (isCycleInChild) {
         for (size_t i = 0; i < path.size(); ++i) {
             std::cout<<"["<<i<<"]"<<":  "<<path[i]<<std::endl;
         }
+        return true;
     }
-    return isCycleInChild;
+
+    std::vector<CExpr*> stack = {e};
+    std::unordered_set<CExpr*> unique_nodes;
+
+    while (!stack.empty()) {
+        auto v = stack.back();
+        stack.pop_back();
+
+        unique_nodes.insert(v);
+
+        #define REP \
+        if(ptr) { \
+            for (size_t i = 0; i < ptr->size(); ++i) { \
+                CExpr *child = ptr->at(i); \
+                if (!unique_nodes.contains(child)) { \
+                    stack.push_back(child); \
+                } \
+            } \
+        }
+
+        {const Or* ptr = dynamic_cast<const Or*>(v); REP}
+        {const Opt* ptr = dynamic_cast<const Opt*>(v); REP}
+        {const Any* ptr = dynamic_cast<const Any*>(v); REP}
+        {const OneOrMore* ptr = dynamic_cast<const OneOrMore*>(v); REP}
+        {const Seq* ptr = dynamic_cast<const Seq*>(v); REP}
+
+        #undef REP
+    }
+
+    for (auto n: unique_nodes) {
+        std::unordered_set<CExpr*> set;
+        std::vector<std::string_view> path;
+        bool isCycleInChild = __recurs_check_cycles(n, set, path);
+        if (isCycleInChild) {
+            for (size_t i = 0; i < path.size(); ++i) {
+                std::cout<<"["<<i<<"]"<<":  "<<path[i]<<std::endl;
+            }
+            return true;
+        }
+    }
+
+    for (auto n: unique_nodes) {
+        {
+            const Any* ptr = dynamic_cast<const Any*>(n);
+            std::vector<std::string_view> path;
+            if (ptr && __can_reach(ptr->at(0), path)) {
+                std::cout << "Nondetermenistic Any seq detected from expr [" << _namedStorage.try_find_name(n) << "]" << std::endl;
+                std::cout << "___________________________________________\n";
+                for (auto p: path) {
+                    std::cout << p << ", ";
+                }
+                std::cout << "\n___________________________________________\n";
+                // return true;
+            }
+        }
+        {
+            const OneOrMore* ptr = dynamic_cast<const OneOrMore*>(n);
+            std::vector<std::string_view> path;
+            if (ptr && __can_reach(ptr->at(0), path)) {
+                std::cout << "Nondetermenistic OneOrMore seq detected from expr [" << _namedStorage.try_find_name(n) << "]" << std::endl;
+                std::cout << "___________________________________________\n";
+                for (auto p: path) {
+                    std::cout << p << ", ";
+                }
+                std::cout << "\n___________________________________________\n";
+                // return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool Parser::__can_reach(const CExpr *v, std::vector<std::string_view> &path) {
+    // {
+    //     const Opt* ptr = dynamic_cast<const Opt*>(v); 
+    //     if (ptr) {
+    //         path.push_back(_namedStorage.try_find_name(v));
+    //         return true;
+    //     }
+    // }
+    {
+        const Any* ptr = dynamic_cast<const Any*>(v); 
+        if (ptr) {
+            path.push_back(_namedStorage.try_find_name(v));
+            return true;
+        }
+    }
+    {
+        const Or* ptr = dynamic_cast<const Or*>(v); 
+        if (ptr) {
+            for (size_t i=0; i<ptr->size(); ++i) {
+                if (__can_reach(ptr->at(i), path)) {
+                    path.push_back(_namedStorage.try_find_name(ptr));
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+    {
+        const Seq* ptr = dynamic_cast<const Seq*>(v); 
+        if (ptr){
+            bool can = __can_reach(ptr->at(0), path);
+            if (can) {
+                path.push_back(_namedStorage.try_find_name(ptr));
+                return true;
+            }
+            return false;
+        }
+    }
+    {
+        const OneOrMore* ptr = dynamic_cast<const OneOrMore*>(v); 
+        if (ptr) {
+            bool can = __can_reach(ptr->at(0), path);
+            if (can) {
+                path.push_back(_namedStorage.try_find_name(ptr));
+                return true;
+            }
+            return false;
+        }
+    }
+
+    return false;
 }
 
 
