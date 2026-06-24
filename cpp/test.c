@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void print_str(const char *str) {
+int print_str(const char *str) {
     printf("%s, %d", str, strlen(str));
 }
 
@@ -12,6 +12,5 @@ void print_str(const char *str) {
 int main() {
 
 
-    print_str("Hello, world");
 
 }

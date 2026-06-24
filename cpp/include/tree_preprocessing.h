@@ -14,7 +14,7 @@ int get_order_of_op_node(Node *v) {
 
     //AND, OR, GR, LE, GR_E, LE_E, EQ, PLUS, MINUS, MUL, DIV
     using enum TokenType;
-    switch(v->children[1]->get_tok().type) {
+    switch(v->children[1]->tok().type) {
         case OR: return 0;
         case AND: return 1;
         case GR: case LE: case GR_E: case LE_E: case EQ: return 2;

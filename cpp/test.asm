@@ -201,26 +201,15 @@ printf:                                 # @printf
                                         # -- End function
 	.def	main;
 	.scl	2;
-	.type	32;
 	.endef
-	.text
-	.globl	main                            # -- Begin function main
-	.p2align	4
 main:                                   # @main
-.seh_proc main
-# %bb.0:
 	subq	$40, %rsp
-	.seh_stackalloc 40
-	.seh_endprologue
 	leaq	"??_C@_0N@FIHACJEH@Hello?0?5world?$AA@"(%rip), %rcx
 	callq	print_str
 	xorl	%eax, %eax
-	.seh_startepilogue
 	addq	$40, %rsp
-	.seh_endepilogue
 	retq
-	.seh_endproc
-                                        # -- End function
+
 	.def	_vsprintf_l;
 	.scl	2;
 	.type	32;

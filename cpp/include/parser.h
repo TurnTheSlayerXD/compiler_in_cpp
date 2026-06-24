@@ -3,10 +3,14 @@
 
 #include <help.h>
 
+
 class Parser;
 class Expr;
 
 using CExpr = const Expr;
+
+CExpr* init_parsing_expr(Parser& p);
+
 
 class RefExpr;
 class Term;
@@ -96,12 +100,19 @@ public:
     std::vector<std::string_view> _decltypes;
     std::vector<std::string_view> _msgs;
 
-    Parser(): _decltypes({"int", "char", "void"})  {}
+    Node *_nodeRoot;
+
+
+    Parser(): _decltypes({"int", "char", "void"}), _nodeRoot{nullptr}  {}
 
     Parser(const Parser &rhs) = delete;
     Parser(Parser &&rhs) = delete;
     Parser& operator =(const Parser &rhs) = delete;
     Parser& operator =(Parser &&rhs) = delete;
+
+    ~Parser(){
+        delete _nodeRoot;
+    }
 
     CExpr* named_ref(std::string_view exprName);
 
@@ -135,6 +146,9 @@ public:
     }
 
     bool __can_reach(CExpr *v, std::vector<std::string_view> &path);
+
+
+    Node* eval(Tokenizer &t);
 };
 
 void NamedStorage::set_name(CExpr* expr, std::string_view name) {
@@ -573,7 +587,6 @@ bool Parser::__recurs_check_cycles(CExpr* expr, std::unordered_set<CExpr*> &set,
 
     const TypeUse *typeuse = dynamic_cast<const TypeUse*>(expr);
     if (typeuse) {
-        std::cout << "Typeuse found" << std::endl;
         return false;
     }
 
@@ -773,6 +786,12 @@ bool Parser::__can_reach(const CExpr *v, std::vector<std::string_view> &path) {
     }
 
     return false;
+}
+
+Node* Parser::eval(Tokenizer &t) {
+    CExpr *expr = init_parsing_expr(*this);
+    _nodeRoot = expr->eval(t);
+    return _nodeRoot;
 }
 
 

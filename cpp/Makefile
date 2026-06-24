@@ -10,11 +10,15 @@ INCLUDE=\
 ./include/parser.h\
 ./include/help.h\
 ./include/parsing_expr.h\
-./include/tree_preprocessing.h
+./include/tree_preprocessing.h\
+./include/code_builder.h\
+./include/context.h\
+./include/instructions.h
+
 
 
 $(OUT): $(SRC) $(INCLUDE)
-	$(CC) -o $(OUT) $(FLAGS) -I./include $(SRC)
+	$(CC) -o $(OUT) $(FLAGS) -I./include -O2 $(SRC)
 
 all: $(OUT)
 

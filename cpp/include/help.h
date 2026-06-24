@@ -11,4 +11,11 @@ struct Destruct {
     }
 };
 
+template <class T>
+struct Res {
+    bool is_err;
+    T value;
+};
+
+
 #endif

@@ -12,13 +12,18 @@
 
 #include <tree_preprocessing.h>
 
+#include <code_builder.h> 
+
 const char *line = "\n____________________________________________________________\n";
 
 
 int main() {
     // const char *prog = "int* x = 1;";
     const char *prog = 
-    "char fuu(int argc) { }"
+    "char*const zoo();"
+    "char*const bar(int);"
+    "char*const fuu(int , char *const *const );"
+    // "int* fuu(int , char, char*);"
     "int main(int argc, const char* aboba, int x[], char** argv) { "
     "    for (int i = 0; i < argc; i = i + 1) { "
     "       while (1) { "
@@ -55,13 +60,7 @@ int main() {
     std::printf("%sEnd Tokens%s", line, line);
 
     Parser p;
-    CExpr *expr = init_parsing_expr(p);
-    if (!expr) {
-        return 69;
-    }
-
-    Node *root = expr->eval(tokenizer);
-    Destruct d([&root](){ delete root; });
+    Node *root = p.eval(tokenizer);
 
     if (!tokenizer.eof()) {
         std::cerr << "____________________________________________________________" << std::endl;
@@ -74,15 +73,13 @@ int main() {
         std::cerr << "____________________________________________________________" << std::endl;
         return 69;
     }
-
     if (!root) {
         std::cout << "Invalid expr or bug in Parser!" << std::endl;
         return 69;
     }
 
+// Processing tree
     preprocess_tree(&root);
-
-
 
     std::ofstream os("./__tree_ast.txt", std::ios::out);
     auto res = root->get_str_repr({.indentStep = 4, .newLine="\n"});

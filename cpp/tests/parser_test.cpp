@@ -35,13 +35,7 @@ int run_test(TestArg arg) {
     tokenizer.reset_pos(TokPos{.index = 0});
     
     Parser p;
-    CExpr *expr = init_parsing_expr(p);
-    if (!expr) {
-        return 69;
-    }
-
-    Node *root = expr->eval(tokenizer);
-    Destruct d([&root](){ delete root; });
+    Node *root = p.eval(tokenizer);
 
     if (!tokenizer.eof()) {
         std::fprintf(stderr, "Failed test %s%s", arg.testId, line);

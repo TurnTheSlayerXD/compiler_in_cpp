@@ -50,6 +50,9 @@ enum class NodeType {
     
     Any,
     OneOrMore,
+
+    FunDeclParams,
+    Call_Args,
 };
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
@@ -97,6 +100,9 @@ std::string_view to_string(NodeType tp) {
         case Break: return "Break";
         case Continue: return "Continue";
 
+        case FunDeclParams : return "Fun decl params";
+        case Call_Args: return "Call fun args";
+
         default: assert(false && "Unexpected"); return "";
     }
 }
@@ -129,11 +135,11 @@ struct Node {
     const NodeType type;
     
 private:
-    const Token tok;
+    const Token _tok;
 
 public:
-    Node(NodeType type): type{type}, tok{} {}
-    Node(NodeType type, Token relatedToken): type{type}, tok{relatedToken} { assert(type == NodeType::Leaf); }
+    Node(NodeType type): type{type}, _tok{} {}
+    Node(NodeType type, Token relatedToken): type{type}, _tok{relatedToken} { assert(type == NodeType::Leaf); }
 
     Node(const Node& rhs) = delete;
     Node(Node&& rhs) noexcept = default;
@@ -149,16 +155,25 @@ public:
         }
     }
 
-    Token get_tok() {
-        if (type != NodeType::Leaf) {
-            assert(false && "Should not be accessed");
+    std::string_view text() {
+        return tok().text;
+    }
+
+    Token tok() {
+        assert(type == NodeType::Leaf && "Should not be accessed");
+        return _tok;
+    }
+
+    Node* child(size_t i) {
+        if (i >= children.size()) {
+            return nullptr;
         }
-        return tok;
+        return children[i];
     }
 
     std::string to_string() {
         if (type == NodeType::Leaf) {
-            return std::string(::to_string(type)) + " `"+ std::string(tok.text) + "`";
+            return std::string(::to_string(type)) + " `"+ std::string(_tok.text) + "`";
         }
         return std::string(::to_string(type));
     }

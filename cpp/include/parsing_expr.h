@@ -1,10 +1,13 @@
 #ifndef PARSING_EXPR_H
 #define PARSING_EXPR_H
 
-CExpr* init_parsing_expr(Parser& p) {
+#include <parser.h>
+
+
+const Expr* init_parsing_expr(Parser& p) {
     using enum TokenType;
 
-    auto operand = p.or_("call_op", "un_op", "brace", WORD, NUM_INT, NUM_FLOAT);
+    auto operand = p.or_("bracket_op", "un_op", "brace", WORD, NUM_INT, NUM_FLOAT);
 
     auto unOp = p.or_(
         p.seq(NodeType::Op_Un, p.or_(PLUS, MINUS, MUL, ADDR, INCR, DECR), operand)
@@ -25,23 +28,23 @@ CExpr* init_parsing_expr(Parser& p) {
     )->set_name("brace");
     (void)(brace);
 
-    auto commaOp = p.seq(NodeType::Op_Comma,
+    auto callArgs = p.seq(NodeType::Call_Args,
         "rvalue", p.any(p.seq(NodeType::Op_Comma, COMMA, "rvalue"))
     );
 
-    auto callBraces = p.one_or_more(
+    auto bracketSeq = p.one_or_more(
         p.or_(
-            p.seq(NodeType::Op_Call_Brace, L_BR, p.opt(commaOp), R_BR),
+            p.seq(NodeType::Op_Call_Brace, L_BR, p.opt(callArgs), R_BR),
             p.seq(NodeType::Subscr, L_SUBSCR, "rvalue", R_SUBSCR)
-        )
-        )->set_name("call_braces");
+        
+        ))->set_name("bracket_seq");
 
-    auto callOp = 
+    auto bracketOp = 
         p.seq (
             NodeType::Op_Call,
-            p.or_("brace", WORD, NUM_INT, NUM_FLOAT), callBraces
-    )->set_name("call_op"); 
-    (void)(callOp);
+            p.or_("brace", WORD, NUM_INT, NUM_FLOAT), bracketSeq
+    )->set_name("bracket_op"); 
+    (void)(bracketOp);
 
 
     auto rvalue = p.or_(binOp, operand)
@@ -54,7 +57,7 @@ CExpr* init_parsing_expr(Parser& p) {
     auto expr = p.or_(assign, rvalue, lvalue
         )->set_name("expr");
 
-    auto typespecStar = p.any(p.seq(NodeType::TypespecStar, MUL));
+    auto typespecStar = p.any(p.seq(NodeType::TypespecStar, MUL, p.opt(KWD_CONST)));
 
     auto typespecSubscr = p.any(p.seq(NodeType::TypespecSubscr, L_SUBSCR, p.opt(NUM_INT), R_SUBSCR));
     
@@ -87,12 +90,12 @@ CExpr* init_parsing_expr(Parser& p) {
     auto statementAny = p.any(singleStatement
         )->set_name("statement_any");
 
-    auto funDeclArgs = p.opt(
-        p.seq(NodeType::Op_Comma, varDecl, p.any(p.seq(NodeType::Op_Comma, COMMA, varDecl)))
+    auto funDeclParams = p.opt(
+        p.seq(NodeType::FunDeclParams, p.or_(varDecl, typeinfer), p.any(p.seq(NodeType::Op_Comma, COMMA, p.or_(varDecl, typeinfer))))
     );
 
     auto funDeclBraces = p.seq(NodeType::Op_Call_Brace, 
-        L_BR, p.opt(funDeclArgs), R_BR
+        L_BR, p.opt(funDeclParams), R_BR
     );
 
     auto funDecl = p.seq(NodeType::FunDecl, typeinfer, WORD, funDeclBraces, SEMICOLON)->set_name("fun_decl");
