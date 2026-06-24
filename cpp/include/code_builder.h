@@ -203,7 +203,7 @@ class FunDeclHandler: public Handler {
 
             ctx.push_scope();
 
-
+            assert(false && "TODO");
 
             ctx.pop_scope();
         }
