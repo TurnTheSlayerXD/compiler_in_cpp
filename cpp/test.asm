@@ -133,29 +133,106 @@ _vsnprintf:                             # @_vsnprintf
 	retq
 	.seh_endproc
                                         # -- End function
-	.def	print_str;
+	.def	fuu;
 	.scl	2;
 	.type	32;
 	.endef
 	.text
-	.globl	print_str                       # -- Begin function print_str
+	.globl	fuu                             # -- Begin function fuu
 	.p2align	4
-print_str:                              # @print_str
-.seh_proc print_str
+fuu:                                    # @fuu
+.seh_proc fuu
 # %bb.0:
-	subq	$40, %rsp
-	.seh_stackalloc 40
+	subq	$120, %rsp
+	.seh_stackalloc 120
 	.seh_endprologue
-	movq	%rcx, 32(%rsp)
-	movq	32(%rsp), %rcx
-	callq	strlen
-	movq	%rax, %r8
-	movq	32(%rsp), %rdx
-	leaq	"??_C@_06OJLEAOEG@?$CFs?0?5?$CFd?$AA@"(%rip), %rcx
+	movq	%rdx, 48(%rsp)                  # 8-byte Spill
+	movq	%rcx, 56(%rsp)                  # 8-byte Spill
+	movq	%rcx, %rax
+	movq	%rax, 64(%rsp)                  # 8-byte Spill
+	movq	168(%rsp), %rax
+	movq	%rax, 72(%rsp)                  # 8-byte Spill
+	movb	160(%rsp), %al
+	movq	%rcx, 112(%rsp)
+	movl	%r9d, 108(%rsp)
+	movq	%r8, 96(%rsp)
+	movq	%rdx, 88(%rsp)
+	movl	$0, 84(%rsp)
+.LBB4_1:                                # =>This Inner Loop Header: Depth=1
+	movslq	84(%rsp), %rax
+	cmpq	$69, %rax
+	jae	.LBB4_4
+# %bb.2:                                #   in Loop: Header=BB4_1 Depth=1
+	movl	84(%rsp), %eax
+	movl	$8, %ecx
+	cltd
+	idivl	%ecx
+	movq	48(%rsp), %rax                  # 8-byte Reload
+                                        # kill: def $dl killed $dl killed $edx
+	movslq	84(%rsp), %rcx
+	movb	%dl, (%rax,%rcx)
+	movslq	84(%rsp), %rcx
+	movsbl	(%rax,%rcx), %edx
+	leaq	"??_C@_02HAOIJKIC@?$CFc?$AA@"(%rip), %rcx
 	callq	printf
-	nop
+# %bb.3:                                #   in Loop: Header=BB4_1 Depth=1
+	movl	84(%rsp), %eax
+	addl	$1, %eax
+	movl	%eax, 84(%rsp)
+	jmp	.LBB4_1
+.LBB4_4:
+	movl	$0, 80(%rsp)
+.LBB4_5:                                # =>This Inner Loop Header: Depth=1
+	movslq	80(%rsp), %rax
+	cmpq	$69, %rax
+	jae	.LBB4_8
+# %bb.6:                                #   in Loop: Header=BB4_5 Depth=1
+	movl	80(%rsp), %eax
+	movl	$8, %ecx
+	cltd
+	idivl	%ecx
+	movq	72(%rsp), %rax                  # 8-byte Reload
+                                        # kill: def $dl killed $dl killed $edx
+	movslq	80(%rsp), %rcx
+	movb	%dl, (%rax,%rcx)
+	movslq	80(%rsp), %rcx
+	movsbl	(%rax,%rcx), %edx
+	leaq	"??_C@_02HAOIJKIC@?$CFc?$AA@"(%rip), %rcx
+	callq	printf
+# %bb.7:                                #   in Loop: Header=BB4_5 Depth=1
+	movl	80(%rsp), %eax
+	addl	$1, %eax
+	movl	%eax, 80(%rsp)
+	jmp	.LBB4_5
+.LBB4_8:
+	movq	48(%rsp), %rdx                  # 8-byte Reload
+	movq	72(%rsp), %rcx                  # 8-byte Reload
+	movq	%rsp, %rax
+	movq	%rcx, 40(%rax)
+	leaq	160(%rsp), %rcx
+	movq	%rcx, 32(%rax)
+	leaq	"??_C@_0BD@IHOBFMNG@?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?$AA@"(%rip), %rcx
+	leaq	96(%rsp), %r8
+	leaq	108(%rsp), %r9
+	callq	printf
+	movsbl	160(%rsp), %eax
+	cmpl	$0, %eax
+	jle	.LBB4_10
+# %bb.9:
+	movq	48(%rsp), %rdx                  # 8-byte Reload
+	movq	56(%rsp), %rcx                  # 8-byte Reload
+	movl	$69, %r8d
+	callq	memcpy
+	jmp	.LBB4_11
+.LBB4_10:
+	movq	72(%rsp), %rdx                  # 8-byte Reload
+	movq	56(%rsp), %rcx                  # 8-byte Reload
+	movl	$69, %r8d
+	callq	memcpy
+.LBB4_11:
+	movq	64(%rsp), %rax                  # 8-byte Reload
 	.seh_startepilogue
-	addq	$40, %rsp
+	addq	$120, %rsp
 	.seh_endepilogue
 	retq
 	.seh_endproc
@@ -199,17 +276,184 @@ printf:                                 # @printf
 	retq
 	.seh_endproc
                                         # -- End function
+	.def	bar;
+	.scl	2;
+	.type	32;
+	.endef
+	.text
+	.globl	bar                             # -- Begin function bar
+	.p2align	4
+bar:                                    # @bar
+.seh_proc bar
+# %bb.0:
+	subq	$104, %rsp
+	.seh_stackalloc 104
+	.seh_endprologue
+	movq	%rdx, 40(%rsp)                  # 8-byte Spill
+	movq	%rcx, 48(%rsp)                  # 8-byte Spill
+	movq	%rcx, %rax
+	movq	%rax, 56(%rsp)                  # 8-byte Spill
+	movq	%rcx, 96(%rsp)
+	movq	%r8, 88(%rsp)
+	movl	%r9d, 84(%rsp)
+	movq	%rdx, 72(%rsp)
+	movl	$0, 68(%rsp)
+.LBB6_1:                                # =>This Inner Loop Header: Depth=1
+	movslq	68(%rsp), %rax
+	cmpq	$69, %rax
+	jae	.LBB6_4
+# %bb.2:                                #   in Loop: Header=BB6_1 Depth=1
+	movq	40(%rsp), %rax                  # 8-byte Reload
+	movslq	68(%rsp), %rcx
+	movsbl	(%rax,%rcx), %ecx
+	movl	68(%rsp), %eax
+	movl	$8, %r8d
+	cltd
+	idivl	%r8d
+	movq	40(%rsp), %rax                  # 8-byte Reload
+	addl	%edx, %ecx
+	movb	%cl, %dl
+	movslq	68(%rsp), %rcx
+	movb	%dl, (%rax,%rcx)
+	movslq	68(%rsp), %rcx
+	movsbl	(%rax,%rcx), %edx
+	leaq	"??_C@_02HAOIJKIC@?$CFc?$AA@"(%rip), %rcx
+	callq	printf
+# %bb.3:                                #   in Loop: Header=BB6_1 Depth=1
+	movl	68(%rsp), %eax
+	addl	$1, %eax
+	movl	%eax, 68(%rsp)
+	jmp	.LBB6_1
+.LBB6_4:
+	movl	$0, 64(%rsp)
+.LBB6_5:                                # =>This Inner Loop Header: Depth=1
+	movslq	64(%rsp), %rax
+	cmpq	$8, %rax
+	jae	.LBB6_8
+# %bb.6:                                #   in Loop: Header=BB6_5 Depth=1
+	movslq	64(%rsp), %rax
+	movsbl	88(%rsp,%rax), %eax
+	movl	%eax, 36(%rsp)                  # 4-byte Spill
+	movl	64(%rsp), %eax
+	movl	$8, %ecx
+	cltd
+	idivl	%ecx
+	movl	36(%rsp), %eax                  # 4-byte Reload
+	addl	%edx, %eax
+	movb	%al, %cl
+	movslq	64(%rsp), %rax
+	movb	%cl, 88(%rsp,%rax)
+	movslq	64(%rsp), %rax
+	movsbl	88(%rsp,%rax), %edx
+	leaq	"??_C@_02HAOIJKIC@?$CFc?$AA@"(%rip), %rcx
+	callq	printf
+# %bb.7:                                #   in Loop: Header=BB6_5 Depth=1
+	movl	64(%rsp), %eax
+	addl	$1, %eax
+	movl	%eax, 64(%rsp)
+	jmp	.LBB6_5
+.LBB6_8:
+	movq	40(%rsp), %rdx                  # 8-byte Reload
+	leaq	"??_C@_06EBIOKLLN@?$CFp?0?5?$CFp?$AA@"(%rip), %rcx
+	leaq	88(%rsp), %r8
+	callq	printf
+	cmpl	$0, 84(%rsp)
+	jle	.LBB6_10
+# %bb.9:
+	movq	40(%rsp), %rdx                  # 8-byte Reload
+	movq	48(%rsp), %rcx                  # 8-byte Reload
+	movl	$69, %r8d
+	callq	memcpy
+	jmp	.LBB6_11
+.LBB6_10:
+	movq	40(%rsp), %rdx                  # 8-byte Reload
+	movq	48(%rsp), %rcx                  # 8-byte Reload
+	movl	$69, %r8d
+	callq	memcpy
+.LBB6_11:
+	movq	56(%rsp), %rax                  # 8-byte Reload
+	.seh_startepilogue
+	addq	$104, %rsp
+	.seh_endepilogue
+	retq
+	.seh_endproc
+                                        # -- End function
 	.def	main;
 	.scl	2;
+	.type	32;
 	.endef
+	.globl	main                            # -- Begin function main
+	.p2align	4
 main:                                   # @main
-	subq	$40, %rsp
-	leaq	"??_C@_0N@FIHACJEH@Hello?0?5world?$AA@"(%rip), %rcx
-	callq	print_str
+.seh_proc main
+# %bb.0:
+	subq	$648, %rsp                      # imm = 0x288
+	.seh_stackalloc 648
+	.seh_endprologue
+	movl	$0, 644(%rsp)
+	movq	%rdx, 632(%rsp)
+	movl	%ecx, 628(%rsp)
+	leaq	559(%rsp), %rcx
+	xorl	%edx, %edx
+	movl	$69, %r8d
+	callq	memset
+	leaq	490(%rsp), %rcx
+	xorl	%edx, %edx
+	movl	$69, %r8d
+	callq	memset
+	leaq	352(%rsp), %rcx
+	leaq	490(%rsp), %rdx
+	movl	$69, %r8d
+	callq	memcpy
+	leaq	283(%rsp), %rcx
+	leaq	559(%rsp), %rdx
+	movl	$69, %r8d
+	callq	memcpy
+	leaq	421(%rsp), %rcx
+	leaq	352(%rsp), %rdx
 	xorl	%eax, %eax
-	addq	$40, %rsp
+	movl	%eax, %r8d
+	xorl	%r9d, %r9d
+	leaq	283(%rsp), %rax
+	movl	$0, 32(%rsp)
+	movq	%rax, 40(%rsp)
+	callq	fuu
+	leaq	275(%rsp), %rcx
+	movb	$0, 275(%rsp)
+	movq	%rcx, %rax
+	addq	$1, %rax
+	addq	$8, %rcx
+	movq	%rcx, 48(%rsp)                  # 8-byte Spill
+	movq	%rax, 56(%rsp)                  # 8-byte Spill
+.LBB7_1:                                # =>This Inner Loop Header: Depth=1
+	movq	56(%rsp), %rax                  # 8-byte Reload
+	movq	48(%rsp), %rcx                  # 8-byte Reload
+	movb	$0, (%rax)
+	addq	$1, %rax
+	cmpq	%rcx, %rax
+	movq	%rax, 56(%rsp)                  # 8-byte Spill
+	jne	.LBB7_1
+# %bb.2:
+	leaq	206(%rsp), %rcx
+	xorl	%edx, %edx
+	movl	$69, %r8d
+	callq	memset
+	leaq	68(%rsp), %rcx
+	leaq	206(%rsp), %rdx
+	movl	$69, %r8d
+	callq	memcpy
+	movq	275(%rsp), %r8
+	leaq	137(%rsp), %rcx
+	leaq	68(%rsp), %rdx
+	movl	$4294967295, %r9d               # imm = 0xFFFFFFFF
+	callq	bar
+	movl	644(%rsp), %eax
+	.seh_startepilogue
+	addq	$648, %rsp                      # imm = 0x288
+	.seh_endepilogue
 	retq
-
+	.seh_endproc
+                                        # -- End function
 	.def	_vsprintf_l;
 	.scl	2;
 	.type	32;
@@ -283,15 +527,15 @@ _vsnprintf_l:                           # @_vsnprintf_l
 	callq	__stdio_common_vsprintf
 	movl	%eax, 100(%rsp)
 	cmpl	$0, 100(%rsp)
-	jge	.LBB8_2
+	jge	.LBB9_2
 # %bb.1:
 	movl	$4294967295, %eax               # imm = 0xFFFFFFFF
 	movl	%eax, 52(%rsp)                  # 4-byte Spill
-	jmp	.LBB8_3
-.LBB8_2:
+	jmp	.LBB9_3
+.LBB9_2:
 	movl	100(%rsp), %eax
 	movl	%eax, 52(%rsp)                  # 4-byte Spill
-.LBB8_3:
+.LBB9_3:
 	movl	52(%rsp), %eax                  # 4-byte Reload
 	.seh_startepilogue
 	addq	$136, %rsp
@@ -352,15 +596,20 @@ _vfprintf_l:                            # @_vfprintf_l
 	retq
 	.seh_endproc
                                         # -- End function
-	.section	.rdata,"dr",discard,"??_C@_06OJLEAOEG@?$CFs?0?5?$CFd?$AA@"
-	.globl	"??_C@_06OJLEAOEG@?$CFs?0?5?$CFd?$AA@" # @"??_C@_06OJLEAOEG@?$CFs?0?5?$CFd?$AA@"
-"??_C@_06OJLEAOEG@?$CFs?0?5?$CFd?$AA@":
-	.asciz	"%s, %d"
+	.section	.rdata,"dr",discard,"??_C@_02HAOIJKIC@?$CFc?$AA@"
+	.globl	"??_C@_02HAOIJKIC@?$CFc?$AA@"   # @"??_C@_02HAOIJKIC@?$CFc?$AA@"
+"??_C@_02HAOIJKIC@?$CFc?$AA@":
+	.asciz	"%c"
 
-	.section	.rdata,"dr",discard,"??_C@_0N@FIHACJEH@Hello?0?5world?$AA@"
-	.globl	"??_C@_0N@FIHACJEH@Hello?0?5world?$AA@" # @"??_C@_0N@FIHACJEH@Hello?0?5world?$AA@"
-"??_C@_0N@FIHACJEH@Hello?0?5world?$AA@":
-	.asciz	"Hello, world"
+	.section	.rdata,"dr",discard,"??_C@_0BD@IHOBFMNG@?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?$AA@"
+	.globl	"??_C@_0BD@IHOBFMNG@?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?$AA@" # @"??_C@_0BD@IHOBFMNG@?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?$AA@"
+"??_C@_0BD@IHOBFMNG@?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?0?5?$CFp?$AA@":
+	.asciz	"%p, %p, %p, %p, %p"
+
+	.section	.rdata,"dr",discard,"??_C@_06EBIOKLLN@?$CFp?0?5?$CFp?$AA@"
+	.globl	"??_C@_06EBIOKLLN@?$CFp?0?5?$CFp?$AA@" # @"??_C@_06EBIOKLLN@?$CFp?0?5?$CFp?$AA@"
+"??_C@_06EBIOKLLN@?$CFp?0?5?$CFp?$AA@":
+	.asciz	"%p, %p"
 
 	.lcomm	__local_stdio_printf_options._OptionsStorage,8,8 # @__local_stdio_printf_options._OptionsStorage
 	.section	.debug$S,"dr"
@@ -396,9 +645,9 @@ _vfprintf_l:                            # @_vfprintf_l
 	.p2align	2, 0x0
 	.addrsig
 	.addrsig_sym _vsnprintf
-	.addrsig_sym print_str
+	.addrsig_sym fuu
 	.addrsig_sym printf
-	.addrsig_sym strlen
+	.addrsig_sym bar
 	.addrsig_sym _vsprintf_l
 	.addrsig_sym _vsnprintf_l
 	.addrsig_sym __stdio_common_vsprintf

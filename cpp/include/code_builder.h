@@ -13,11 +13,6 @@ UsedType* parse_typeuse(Node *n, Context &ctx, bool *err) {
     assert(n && "Unexpected nullptr");
     assert(n->type == NodeType::TypeUse);
 
-    enum class TypeParseState {
-        INIT,
-        AFTER_CONST,
-    };
-
     bool isConst = false;
     std::string_view name;
 
@@ -58,7 +53,6 @@ UsedType* parse_typeuse(Node *n, Context &ctx, bool *err) {
                     assert(n->child(index)->child(1)->type == NodeType::Leaf && n->child(index)->child(1)->tok().type == TokenType::KWD_CONST);
                     isConstPtr = true;
                 }
-
                 tp = ctx.ptr_type(tp, isConstPtr);
             }
             else {
@@ -72,10 +66,6 @@ UsedType* parse_typeuse(Node *n, Context &ctx, bool *err) {
     return tp;
 }
 
-struct VarDecl {
-    std::string_view varName;
-    UsedType *type;
-};
 
 VarDecl parse_var_decl(Node *n, Context &ctx, bool *err) {
     assert(false && "NOT IMPLEMENTED");
@@ -83,7 +73,7 @@ VarDecl parse_var_decl(Node *n, Context &ctx, bool *err) {
     UsedType* type = parse_typeuse(n->child(0), ctx, err);
     assert(n->child(1)->type == NodeType::Leaf && n->child(1)->tok().type == TokenType::WORD);
     std::string_view name = n->child(1)->text();
-    return { .varName = name, .type = type };
+    return { .varName = name, .varType = type };
 }
 
 class Handler {
@@ -140,7 +130,7 @@ class FunDeclHandler: public Handler {
             UsedType* paramType;
             if (firstParam->type == NodeType::VarDecl) {
                 auto varDecl = parse_var_decl(firstParam, ctx, err);
-                paramType = varDecl.type;
+                paramType = varDecl.varType;
                 _paramDecls.push_back(varDecl);
                 if (*err) return nullptr;
             }
@@ -161,7 +151,7 @@ class FunDeclHandler: public Handler {
                         auto varDecl = parse_var_decl(commaJoined->child(1), ctx, err);
                         if (*err) return nullptr;
                         _paramDecls.push_back(varDecl);
-                        paramType = varDecl.type;
+                        paramType = varDecl.varType;
                     }
                     else {
                         assert(commaJoined->child(1)->type == NodeType::TypeUse);
@@ -187,7 +177,11 @@ class FunDeclHandler: public Handler {
             return {};
         }
         
-        ctx.add_var(VarDecl{ .varName = _funName, .type = funType });
+        bool exists = false;
+        ctx.add_var(VarDecl{ .varName = _funName, .varType = funType }, &exists);
+        if (exists) {
+            assert(false && "TODO");
+        }
 
         if (is_fun_with_body(n)) {
             if (funType->_f.Fun.paramCount != _paramDecls.size()) {
@@ -195,13 +189,19 @@ class FunDeclHandler: public Handler {
                 return {};
             }
             for (size_t i = 0; i < _paramDecls.size(); ++i) {
-                if (_paramDecls[i].type != funType->_f.Fun.paramTypes[i]) {
+                if (_paramDecls[i].varType != funType->_f.Fun.paramTypes[i]) {
                     *err = true;
                     return {};
                 }
             }
 
             ctx.push_scope();
+
+            extract_params(funType, _paramDecls, ctx, err);
+            if (*err) {
+                return {};
+            }
+
 
             assert(false && "TODO");
 
@@ -210,22 +210,25 @@ class FunDeclHandler: public Handler {
     
         return {};
     }
+
+
+    void extract_params(UsedType* funType, std::vector<VarDecl> decls, Context &ctx, bool *err) {
+        assert(funType->_class == UsedTypeClass::Fun);
+
+        ctx.add_i();
+    }
 };
 
 class CurlyScopeHandler: public Handler {
-
-
 
 };
 
 
 
 class HandleGlobalScope: public Handler {
-
     bool can_handle(Node *n, Context &ctx) {
         assert(false && "NOT IMPLEMENTED");
     }
-
 };
 
 
