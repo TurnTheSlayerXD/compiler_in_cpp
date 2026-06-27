@@ -180,13 +180,14 @@ class FunDeclHandler: public Handler {
         }
 
         bool hasBody = is_fun_with_body(n);
-        
-        ctx.add_fun(VarDecl{ .varName = _funName, .varType = _funType }, hasBody, err);
+        ctx.add_fun(_funName, _funType, hasBody, err);
+        if (hasBody) {
+            ctx.add_mark(_funName);
+        }
         if (*err) {
             *err = true;
             return;
         }        
-
         if (hasBody) {
             if (_funType->_f.Fun.paramCount != _paramDecls.size()) {
                 *err = true;
@@ -198,25 +199,17 @@ class FunDeclHandler: public Handler {
                     return;
                 }
             }
-
             ctx.push_scope();
-
             extract_params(ctx, err);
             if (*err) {
                 return;
             }
-
-            assert(false && "TODO");
             ctx.pop_scope();
         }
-    
     }
-
 
     void extract_params(Context &ctx, bool *err) {
         using enum Register;
-        using enum Register;
-
         using enum InstrType;
 
         constexpr std::array<Register, 4> paramRegs = {

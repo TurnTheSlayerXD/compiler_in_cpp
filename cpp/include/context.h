@@ -127,7 +127,8 @@ public:
 };
 
 struct FunDefined {
-    VarDecl funDecl;
+    std::string_view funName;
+    UsedType* funType;
     bool defined;
 };
 
@@ -273,7 +274,7 @@ public:
         static_assert(false);
     }
 
-    void add_i(InstrType iType, Register reg, Register reg) {
+    void add_i(InstrType iType, Register regSrc, Register regDst) {
         static_assert(false && "Not implemented");
     }
 
@@ -298,19 +299,19 @@ public:
     }
 
 
-    void add_fun(VarDecl funDecl, bool withDefinition, bool *err) {
-        assert(funDecl.varType->_class == UsedTypeClass::Fun);
+    void add_fun(std::string_view funName, UsedType* funType, bool withDefinition, bool *err) {
+        assert(funType->_class == UsedTypeClass::Fun);
 
         bool wasDeclared = false;
         for (auto &d: _funs) {
-            if (d.funDecl.varName == funDecl.varName ) {
-                bool isSameInst = d.funDecl.varType->is_same_inst(*funDecl.varType);
+            if (d.funName == funName ) {
+                bool isSameInst = d.funType == funType;
                 if (isSameInst && d.defined && withDefinition) {
                     *err = true;
-                    add_err(std::string("Function [") + std::string(funDecl.varName) + "] already defined", _cur);
+                    add_err(std::string("Function [") + std::string(funName) + "] already defined", _cur);
                 }
                 else if (!isSameInst) {
-                    add_err(std::string("Function [") + std::string(funDecl.varName) + "] had another prototype in previous declaration", _cur);
+                    add_err(std::string("Function [") + std::string(funName) + "] had another prototype in previous declaration", _cur);
                 }
                 else {
                     d.defined = withDefinition;
@@ -320,11 +321,19 @@ public:
         }
 
         if (!wasDeclared) {
-            _funs.push_back(FunDefined{.funDecl = funDecl, .defined = withDefinition});
+            _funs.push_back({.funName = funName, .funType = funType, .defined = withDefinition});
         }
     }
 
-    set_cursor(Cursor *c) {
+    void add_mark(std::string_view mark) {
+        static_assert(false && "NOT IMPLEMENTED");
+    }
+
+    std::string_view auto_add_mark() {
+        static_assert(false && "NOT IMPLEMENTED");
+    }
+
+    void set_cursor(Cursor *c) {
         assert(c);
         _cur = c;
     }
