@@ -3,7 +3,7 @@
 	.type	0;
 	.endef
 	.globl	@feat.00
-@feat.00 = 0
+.set @feat.00, 0
 	.file	"test.c"
 	.def	sprintf;
 	.scl	2;
@@ -32,9 +32,7 @@ sprintf:                                # @sprintf
 	callq	_vsprintf_l
 	movl	%eax, 52(%rsp)
 	movl	52(%rsp), %eax
-	.seh_startepilogue
 	addq	$72, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -63,9 +61,7 @@ vsprintf:                               # @vsprintf
 	movq	%rax, 32(%rsp)
 	callq	_vsnprintf_l
 	nop
-	.seh_startepilogue
 	addq	$72, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -95,9 +91,7 @@ _snprintf:                              # @_snprintf
 	callq	_vsnprintf
 	movl	%eax, 44(%rsp)
 	movl	44(%rsp), %eax
-	.seh_startepilogue
 	addq	$72, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -127,9 +121,7 @@ _vsnprintf:                             # @_vsnprintf
 	movq	%rax, 32(%rsp)
 	callq	_vsnprintf_l
 	nop
-	.seh_startepilogue
 	addq	$72, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -231,9 +223,7 @@ fuu:                                    # @fuu
 	callq	memcpy
 .LBB4_11:
 	movq	64(%rsp), %rax                  # 8-byte Reload
-	.seh_startepilogue
 	addq	$120, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -270,9 +260,7 @@ printf:                                 # @printf
 	callq	_vfprintf_l
 	movl	%eax, 60(%rsp)
 	movl	60(%rsp), %eax
-	.seh_startepilogue
 	addq	$72, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -372,9 +360,71 @@ bar:                                    # @bar
 	callq	memcpy
 .LBB6_11:
 	movq	56(%rsp), %rax                  # 8-byte Reload
-	.seh_startepilogue
 	addq	$104, %rsp
-	.seh_endepilogue
+	retq
+	.seh_endproc
+                                        # -- End function
+	.def	big;
+	.scl	2;
+	.type	32;
+	.endef
+	.globl	big                             # -- Begin function big
+	.p2align	4
+big:                                    # @big
+.seh_proc big
+# %bb.0:
+	subq	$104, %rsp
+	.seh_stackalloc 104
+	.seh_endprologue
+	movq	%rcx, 32(%rsp)                  # 8-byte Spill
+	movq	%rcx, %rax
+	movq	%rax, 40(%rsp)                  # 8-byte Spill
+	movq	152(%rsp), %rax
+	movq	%rax, 48(%rsp)                  # 8-byte Spill
+	movq	144(%rsp), %rax
+	movq	%rcx, 96(%rsp)
+	movq	%r9, 88(%rsp)
+	movq	%r8, 80(%rsp)
+	movq	%rdx, 72(%rsp)
+	movl	$0, 68(%rsp)
+	movl	$0, 64(%rsp)
+.LBB7_1:                                # =>This Inner Loop Header: Depth=1
+	cmpl	$69, 64(%rsp)
+	jge	.LBB7_4
+# %bb.2:                                #   in Loop: Header=BB7_1 Depth=1
+	movq	48(%rsp), %rax                  # 8-byte Reload
+	movslq	64(%rsp), %rcx
+	movsbl	(%rax,%rcx), %eax
+	addl	68(%rsp), %eax
+	movl	%eax, 68(%rsp)
+# %bb.3:                                #   in Loop: Header=BB7_1 Depth=1
+	movl	64(%rsp), %eax
+	addl	$1, %eax
+	movl	%eax, 64(%rsp)
+	jmp	.LBB7_1
+.LBB7_4:
+	movl	$0, 60(%rsp)
+.LBB7_5:                                # =>This Inner Loop Header: Depth=1
+	cmpl	$69, 60(%rsp)
+	jge	.LBB7_8
+# %bb.6:                                #   in Loop: Header=BB7_5 Depth=1
+	movq	48(%rsp), %rax                  # 8-byte Reload
+	movl	68(%rsp), %ecx
+	movb	%cl, %dl
+	movslq	60(%rsp), %rcx
+	movb	%dl, (%rax,%rcx)
+# %bb.7:                                #   in Loop: Header=BB7_5 Depth=1
+	movl	60(%rsp), %eax
+	addl	$1, %eax
+	movl	%eax, 60(%rsp)
+	jmp	.LBB7_5
+.LBB7_8:
+	movq	48(%rsp), %rdx                  # 8-byte Reload
+	movq	32(%rsp), %rcx                  # 8-byte Reload
+	movl	$69, %r8d
+	callq	memcpy
+	movq	40(%rsp), %rax                  # 8-byte Reload
+	addq	$104, %rsp
 	retq
 	.seh_endproc
                                         # -- End function
@@ -387,70 +437,62 @@ bar:                                    # @bar
 main:                                   # @main
 .seh_proc main
 # %bb.0:
-	subq	$648, %rsp                      # imm = 0x288
-	.seh_stackalloc 648
+	subq	$824, %rsp                      # imm = 0x338
+	.seh_stackalloc 824
 	.seh_endprologue
-	movl	$0, 644(%rsp)
-	movq	%rdx, 632(%rsp)
-	movl	%ecx, 628(%rsp)
-	leaq	559(%rsp), %rcx
+	movq	%rdx, 816(%rsp)
+	movl	%ecx, 812(%rsp)
+	leaq	743(%rsp), %rcx
 	xorl	%edx, %edx
 	movl	$69, %r8d
 	callq	memset
-	leaq	490(%rsp), %rcx
+	leaq	674(%rsp), %rcx
 	xorl	%edx, %edx
 	movl	$69, %r8d
 	callq	memset
-	leaq	352(%rsp), %rcx
-	leaq	490(%rsp), %rdx
+	leaq	605(%rsp), %rcx
+	xorl	%edx, %edx
+	movl	$69, %r8d
+	callq	memset
+	leaq	536(%rsp), %rcx
+	xorl	%edx, %edx
+	movl	$69, %r8d
+	callq	memset
+	leaq	467(%rsp), %rcx
+	xorl	%edx, %edx
+	movl	$69, %r8d
+	callq	memset
+	leaq	329(%rsp), %rcx
+	leaq	467(%rsp), %rdx
 	movl	$69, %r8d
 	callq	memcpy
-	leaq	283(%rsp), %rcx
-	leaq	559(%rsp), %rdx
+	leaq	260(%rsp), %rcx
+	leaq	536(%rsp), %rdx
 	movl	$69, %r8d
 	callq	memcpy
-	leaq	421(%rsp), %rcx
-	leaq	352(%rsp), %rdx
-	xorl	%eax, %eax
-	movl	%eax, %r8d
-	xorl	%r9d, %r9d
-	leaq	283(%rsp), %rax
-	movl	$0, 32(%rsp)
+	leaq	191(%rsp), %rcx
+	leaq	605(%rsp), %rdx
+	movl	$69, %r8d
+	callq	memcpy
+	leaq	122(%rsp), %rcx
+	leaq	674(%rsp), %rdx
+	movl	$69, %r8d
+	callq	memcpy
+	leaq	53(%rsp), %rcx
+	leaq	743(%rsp), %rdx
+	movl	$69, %r8d
+	callq	memcpy
+	leaq	398(%rsp), %rcx
+	leaq	329(%rsp), %rdx
+	leaq	260(%rsp), %r8
+	leaq	191(%rsp), %r9
+	leaq	122(%rsp), %r10
+	leaq	53(%rsp), %rax
+	movq	%r10, 32(%rsp)
 	movq	%rax, 40(%rsp)
-	callq	fuu
-	leaq	275(%rsp), %rcx
-	movb	$0, 275(%rsp)
-	movq	%rcx, %rax
-	addq	$1, %rax
-	addq	$8, %rcx
-	movq	%rcx, 48(%rsp)                  # 8-byte Spill
-	movq	%rax, 56(%rsp)                  # 8-byte Spill
-.LBB7_1:                                # =>This Inner Loop Header: Depth=1
-	movq	56(%rsp), %rax                  # 8-byte Reload
-	movq	48(%rsp), %rcx                  # 8-byte Reload
-	movb	$0, (%rax)
-	addq	$1, %rax
-	cmpq	%rcx, %rax
-	movq	%rax, 56(%rsp)                  # 8-byte Spill
-	jne	.LBB7_1
-# %bb.2:
-	leaq	206(%rsp), %rcx
-	xorl	%edx, %edx
-	movl	$69, %r8d
-	callq	memset
-	leaq	68(%rsp), %rcx
-	leaq	206(%rsp), %rdx
-	movl	$69, %r8d
-	callq	memcpy
-	movq	275(%rsp), %r8
-	leaq	137(%rsp), %rcx
-	leaq	68(%rsp), %rdx
-	movl	$4294967295, %r9d               # imm = 0xFFFFFFFF
-	callq	bar
-	movl	644(%rsp), %eax
-	.seh_startepilogue
-	addq	$648, %rsp                      # imm = 0x288
-	.seh_endepilogue
+	callq	big
+	xorl	%eax, %eax
+	addq	$824, %rsp                      # imm = 0x338
 	retq
 	.seh_endproc
                                         # -- End function
@@ -479,9 +521,7 @@ _vsprintf_l:                            # @_vsprintf_l
 	movq	%rax, 32(%rsp)
 	callq	_vsnprintf_l
 	nop
-	.seh_startepilogue
 	addq	$72, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -527,19 +567,17 @@ _vsnprintf_l:                           # @_vsnprintf_l
 	callq	__stdio_common_vsprintf
 	movl	%eax, 100(%rsp)
 	cmpl	$0, 100(%rsp)
-	jge	.LBB9_2
+	jge	.LBB10_2
 # %bb.1:
 	movl	$4294967295, %eax               # imm = 0xFFFFFFFF
 	movl	%eax, 52(%rsp)                  # 4-byte Spill
-	jmp	.LBB9_3
-.LBB9_2:
+	jmp	.LBB10_3
+.LBB10_2:
 	movl	100(%rsp), %eax
 	movl	%eax, 52(%rsp)                  # 4-byte Spill
-.LBB9_3:
+.LBB10_3:
 	movl	52(%rsp), %eax                  # 4-byte Reload
-	.seh_startepilogue
 	addq	$136, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -590,9 +628,7 @@ _vfprintf_l:                            # @_vfprintf_l
 	movq	%rax, 32(%rsp)
 	callq	__stdio_common_vfprintf
 	nop
-	.seh_startepilogue
 	addq	$104, %rsp
-	.seh_endepilogue
 	retq
 	.seh_endproc
                                         # -- End function
@@ -612,42 +648,10 @@ _vfprintf_l:                            # @_vfprintf_l
 	.asciz	"%p, %p"
 
 	.lcomm	__local_stdio_printf_options._OptionsStorage,8,8 # @__local_stdio_printf_options._OptionsStorage
-	.section	.debug$S,"dr"
-	.p2align	2, 0x0
-	.long	4                               # Debug section magic
-	.long	241
-	.long	.Ltmp1-.Ltmp0                   # Subsection size
-.Ltmp0:
-	.short	.Ltmp3-.Ltmp2                   # Record length
-.Ltmp2:
-	.short	4353                            # Record kind: S_OBJNAME
-	.long	0                               # Signature
-	.byte	0                               # Object name
-	.p2align	2, 0x0
-.Ltmp3:
-	.short	.Ltmp5-.Ltmp4                   # Record length
-.Ltmp4:
-	.short	4412                            # Record kind: S_COMPILE3
-	.long	0                               # Flags and language
-	.short	208                             # CPUType
-	.short	22                              # Frontend version
-	.short	1
-	.short	0
-	.short	0
-	.short	22010                           # Backend version
-	.short	0
-	.short	0
-	.short	0
-	.asciz	"clang version 22.1.0 (https://github.com/llvm/llvm-project 4434dabb69916856b824f68a64b029c67175e532)" # Null-terminated compiler version string
-	.p2align	2, 0x0
-.Ltmp5:
-.Ltmp1:
-	.p2align	2, 0x0
 	.addrsig
 	.addrsig_sym _vsnprintf
-	.addrsig_sym fuu
 	.addrsig_sym printf
-	.addrsig_sym bar
+	.addrsig_sym big
 	.addrsig_sym _vsprintf_l
 	.addrsig_sym _vsnprintf_l
 	.addrsig_sym __stdio_common_vsprintf

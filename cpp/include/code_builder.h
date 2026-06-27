@@ -78,8 +78,8 @@ VarDecl parse_var_decl(Node *n, Context &ctx, bool *err) {
 
 class Handler {
 public:
-    virtual bool can_handle(Node *n, Context &ctx);
-    virtual std::vector<Instr> interpret(Node *n, Context &ctx, bool *err);
+    virtual bool can_handle(Node *n);
+    virtual void interpret(Node *n, Context &ctx, bool *err);
     virtual ~Handler();
 };
 
@@ -87,8 +87,9 @@ class FunDeclHandler: public Handler {
 
     std::vector<VarDecl> _paramDecls;
     std::string_view _funName;
+    UsedType *_funType = nullptr;
 
-    bool can_handle(Node *n, Context &ctx) override {
+    bool can_handle(Node *n) override {
         return n->type == NodeType::FunDecl;
     }
 
@@ -97,21 +98,21 @@ class FunDeclHandler: public Handler {
         return n->child(3)->type != NodeType::Leaf || n->child(3)->tok().type != TokenType::SEMICOLON;
     }
 
-    UsedType* parse_fun_type_part(Node *n, Context &ctx, bool* err) {
+    void parse_fun_type_part(Node *n, Context &ctx, bool* err) {
         
         assert(n->type == NodeType::FunDecl);
 
         UsedType* retType;
-        std::vector<UsedType*> params;
+        std::vector<UsedType*> paramTypes;
 
         if (!n->child(0) || n->child(0)->type != NodeType::TypeUse) {
             *err = true;
-            return nullptr;
+            return;
         }
 
         retType = parse_typeuse(n->child(0), ctx, err); 
         if (*err) {
-            return nullptr;
+            return;
         }
 
         assert(n->child(1) && n->child(1)->type == NodeType::Leaf);
@@ -132,14 +133,14 @@ class FunDeclHandler: public Handler {
                 auto varDecl = parse_var_decl(firstParam, ctx, err);
                 paramType = varDecl.varType;
                 _paramDecls.push_back(varDecl);
-                if (*err) return nullptr;
+                if (*err) return;
             }
             else {
                 paramType = parse_typeuse(firstParam, ctx, err);
-                if (*err) return nullptr;
+                if (*err) return;
             }
 
-            params.push_back(paramType);
+            paramTypes.push_back(paramType);
 
             auto commaSeqParent = inBrace->child(1);
             if (commaSeqParent) {
@@ -149,73 +150,115 @@ class FunDeclHandler: public Handler {
                     UsedType *paramType;
                     if (commaJoined->child(1)->type == NodeType::VarDecl) {
                         auto varDecl = parse_var_decl(commaJoined->child(1), ctx, err);
-                        if (*err) return nullptr;
+                        if (*err) return;
                         _paramDecls.push_back(varDecl);
                         paramType = varDecl.varType;
                     }
                     else {
                         assert(commaJoined->child(1)->type == NodeType::TypeUse);
                         paramType = parse_typeuse(commaJoined->child(1), ctx, err);
-                        if (*err) return nullptr;
+                        if (*err) return;
                     }
 
-                    params.push_back(paramType);
+                    paramTypes.push_back(paramType);
                 }
             }
         }
 
-        return ctx.fun_type(retType, std::move(params));
+        _funType = ctx.fun_type(retType, std::move(paramTypes));
     }
 
-    std::vector<Instr> interpret(Node *n, Context &ctx, bool* err) override {
+    void interpret(Node *n, Context &ctx, bool* err) override {
         *err = false;
-
         assert(n->type == NodeType::FunDecl);
 
-        UsedType* funType = parse_fun_type_part(n, ctx, err);
+        ctx.set_cursor(n->get_first_cursor());
+
+        parse_fun_type_part(n, ctx, err);
         if (*err) {
-            return {};
-        }
-        
-        bool exists = false;
-        ctx.add_var(VarDecl{ .varName = _funName, .varType = funType }, &exists);
-        if (exists) {
-            assert(false && "TODO");
+            return;
         }
 
-        if (is_fun_with_body(n)) {
-            if (funType->_f.Fun.paramCount != _paramDecls.size()) {
+        bool hasBody = is_fun_with_body(n);
+        
+        ctx.add_fun(VarDecl{ .varName = _funName, .varType = _funType }, hasBody, err);
+        if (*err) {
+            *err = true;
+            return;
+        }        
+
+        if (hasBody) {
+            if (_funType->_f.Fun.paramCount != _paramDecls.size()) {
                 *err = true;
-                return {};
+                return;
             }
             for (size_t i = 0; i < _paramDecls.size(); ++i) {
-                if (_paramDecls[i].varType != funType->_f.Fun.paramTypes[i]) {
+                if (_paramDecls[i].varType != _funType->_f.Fun.paramTypes[i]) {
                     *err = true;
-                    return {};
+                    return;
                 }
             }
 
             ctx.push_scope();
 
-            extract_params(funType, _paramDecls, ctx, err);
+            extract_params(ctx, err);
             if (*err) {
-                return {};
+                return;
             }
 
-
             assert(false && "TODO");
-
             ctx.pop_scope();
         }
     
-        return {};
     }
 
 
-    void extract_params(UsedType* funType, std::vector<VarDecl> decls, Context &ctx, bool *err) {
-        assert(funType->_class == UsedTypeClass::Fun);
+    void extract_params(Context &ctx, bool *err) {
+        using enum Register;
+        using enum Register;
 
-        ctx.add_i();
+        using enum InstrType;
+
+        constexpr std::array<Register, 4> paramRegs = {
+            P_REG_4,
+            P_REG_3,
+            P_REG_2,
+            P_REG_1,
+        };
+
+        ctx.take_registers(paramRegs[0], paramRegs[1], paramRegs[2], paramRegs[3]);
+
+        int regI = 0;
+
+        assert(_funType->_class == UsedTypeClass::Fun);
+        
+        if (_funType->ret_type()->type_size() > PTR_SIZE) {
+            auto retAddrP = ctx.stack_alloc(PTR_SIZE);
+            ctx.add_i(MOV, paramRegs[regI], retAddrP);
+            ctx.set_ret_addr_p(retAddrP);
+            regI += 1;
+        }   
+
+        // First cycle should move params from registers to stack without taking into consideration sizes of types
+        for (auto d: _paramDecls) {
+            VarLoc p = {.decl = d, .stackP = ctx.stack_alloc(PTR_SIZE)};
+            ctx.add_var(p, err);
+            if (*err) {
+                return;
+            }
+            if (regI >= paramRegs.size()) {
+                auto reg = ctx.get_free_reg();
+                ctx.add_i(MOV, reg_off(STACK_REG, FUN_PARAMS_STACK_OFF), reg);
+                ctx.add_i(MOV, reg, p.stackP);
+                ctx.free_registers(reg);
+            }
+            else {
+                ctx.add_i(MOV, P_REG_1, p.stackP);
+                regI += 1;
+            }
+        }
+
+        ctx.free_registers(paramRegs[0], paramRegs[1], paramRegs[2], paramRegs[3]);
     }
 };
 
@@ -223,19 +266,12 @@ class CurlyScopeHandler: public Handler {
 
 };
 
-
-
 class HandleGlobalScope: public Handler {
-    bool can_handle(Node *n, Context &ctx) {
-        assert(false && "NOT IMPLEMENTED");
+    bool can_handle(Node *n) {
+        (void)n;
+        static_assert(false && "NOT IMPLEMENTED");
     }
 };
 
-
-namespace GASTarget {
-    std::vector<Instr> interpret(Node *root) {
-        assert(false && "NOT IMPLEMENTED");
-    }
-}
 
 #endif

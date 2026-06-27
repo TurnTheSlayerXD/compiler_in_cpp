@@ -185,6 +185,10 @@ public:
         return buf;
     }
 
+    Cursor* get_first_cursor() {
+        static_assert(false && "NOT IMPLEMENTED");
+    }
+
     static void set_indent(size_t count, std::string&buf) {
         for (size_t i = 0; i < count; ++i) {
             buf.push_back(' ');

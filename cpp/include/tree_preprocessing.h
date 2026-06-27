@@ -1,3 +1,5 @@
+#ifndef TREE_PREPROCESSING_H
+#define TREE_PREPROCESSING_H
 
 #include <set>
 
@@ -193,3 +195,5 @@ void preprocess_tree(Node **root) {
     remove_empty_Any_nodes(root);
     sort_Op_Bin_nodes(root);
 }
+
+#endif

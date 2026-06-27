@@ -54,11 +54,21 @@ Big bar(Big b1, Small b2, int j) {
 }
 
 
+Big big(Big b1, Big b2, Big b3, Big b4, Big b5) {
+
+    int s = 0;
+    for (int i = 0; i < 69; ++i) 
+    {
+        s += b5.buf[i];
+    }
+    for (int i = 0; i < 69; ++i) {
+        b5.buf[i] = s;
+    }
+
+    return b5;
+}
 
 int main(int argc, char **argv) {
 
-    fuu((Big){0}, 0, 0, 0, (Big){0});
-
-
-    bar((Big){0}, (Small){0}, -1);
+    big((Big){0}, (Big){0}, (Big){0}, (Big){0}, (Big){0});
 }

@@ -170,6 +170,11 @@ struct Cursor {
     size_t col;
 };
 
+
+std::string to_string(const Cursor& c) {
+    static_assert(false && "NOT IMPLEMENTED");
+}
+
 struct Token {
     TokenType        type;
     Cursor           cur;

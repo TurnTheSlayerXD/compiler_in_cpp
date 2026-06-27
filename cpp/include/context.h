@@ -1,4 +1,7 @@
+#ifndef CONTEXT_H
+#define CONTEXT_H
 
+#include <instructions.h>
 
 enum class UsedTypeClass {
     Type,
@@ -40,12 +43,21 @@ struct UsedType {
 
     } _f;
 
-    UsedType* retType() {
+    size_t type_size() {
+        static_assert(false && "NOT IMPLEMENTED");
+    }
+
+    UsedType* ret_type() {
         assert(_class == UsedTypeClass::Fun);
         return _f.Fun.retType;
     }
 
-    std::vector<UsedType*> paramTypes() {
+    std::string_view name() {
+        assert(_class == UsedTypeClass::Type);
+        return _f.Type.name;
+    }
+
+    std::vector<UsedType*> param_types() {
         assert(_class == UsedTypeClass::Fun);
         std::vector<UsedType*> vec(_f.Fun.paramCount);
         for (size_t i = 0; i < _f.Fun.paramCount; ++i) {
@@ -90,16 +102,21 @@ struct VarDecl {
     UsedType *varType;
 };
 
+struct VarLoc {
+    VarDecl decl;
+    StackP stackP;
+};
+
 class Scope {
 public:
     Scope* parentScope;
     std::vector<Scope*> subscopes;
 
-    std::vector<VarDecl> vars;
+    std::vector<VarLoc> vars;
     std::vector<UsedType*> types;
 
     Scope(Scope *parentScope) : parentScope{parentScope} {
-
+        
     }
 
     Scope(const Scope& other) = delete;
@@ -109,13 +126,24 @@ public:
     Scope& operator=(Scope&& other) = delete;
 };
 
+struct FunDefined {
+    VarDecl funDecl;
+    bool defined;
+};
+
 class Context {
 public:
 
     std::vector<UsedType*> _typeSt; 
     std::vector<Scope*> _scopeSt; 
 
+    std::vector<FunDefined> _funs;
+
     Scope *curScope;
+
+    std::vector<std::string> _errs;
+
+    Cursor* _cur;
 
     Context() 
     : _typeSt{
@@ -127,7 +155,8 @@ public:
         LOC("char"),
         #undef LOC
         
-    } {
+    }, _cur{nullptr} 
+    {
         curScope = new Scope(nullptr);
         _scopeSt.push_back(curScope);
     }
@@ -151,6 +180,11 @@ public:
             return newPtr;
         }
         return *it;
+    }
+
+    void add_err(std::string &&msg, Cursor* cur) {
+        assert(cur);
+        _errs.push_back(std::string("Error at") + to_string(*cur) + msg);
     }
 
     UsedType* ptr_type(UsedType *ptrTo, bool isConstPtr) {
@@ -201,12 +235,21 @@ public:
         return *it;
     }
 
-    void add_var(VarDecl decl, bool *exists) {
-        curScope->vars.push_back(decl);
+    void add_var(VarLoc var, bool *err) {
+        if (std::find_if(curScope->vars.begin(), curScope->vars.end(), [&var](const auto &d){ return var.decl.varName == d.decl.varName; }) != curScope->vars.end()) {
+            *err = true;
+            add_err(std::string("Already had var with name [") + std::string(var.decl.varName) + "]", _cur);
+        }
+        *err = false;
+        curScope->vars.push_back(var);
     }
 
-    void add_type(UsedType* type, bool *exists) {
+    void add_type(UsedType* type, bool *err) {
         assert(type->_class == UsedTypeClass::Type);
+        if (std::find_if(curScope->types.begin(), curScope->types.end(), [&type](const auto &d) { return type->name() == d->name(); }) 
+        != curScope->types.end()) {
+            *err = true;
+        }
         curScope->types.push_back(type);
     }
 
@@ -222,12 +265,88 @@ public:
         curScope = curScope->parentScope;
     }
 
-
-    void add_i(Instr instr) {
-
-        
+    void set_ret_addr_p(StackP ) {
+        static_assert(false);
     }
 
+    StackP stack_alloc(size_t size) {
+        static_assert(false);
+    }
+
+    void add_i(InstrType iType, Register reg, Register reg) {
+        static_assert(false && "Not implemented");
+    }
+
+    void add_i(InstrType iType, Register reg, RegisterWithOffset arg) {
+        static_assert(false && "Not implemented");
+    }
+
+    void add_i(InstrType iType, Register reg, StackP stP) {
+        static_assert(false && "Not implemented");
+    }
+
+    void add_i(InstrType iType, RegisterWithOffset arg, Register reg) {
+        static_assert(false && "Not implemented");
+    }
+
+    void add_i(InstrType iType, StackP stP, Register reg) {
+        static_assert(false && "Not implemented");
+    }
+
+    void add_i(InstrType iType, InstrArg arg) {
+        static_assert(false && "Not implemented");
+    }
+
+
+    void add_fun(VarDecl funDecl, bool withDefinition, bool *err) {
+        assert(funDecl.varType->_class == UsedTypeClass::Fun);
+
+        bool wasDeclared = false;
+        for (auto &d: _funs) {
+            if (d.funDecl.varName == funDecl.varName ) {
+                bool isSameInst = d.funDecl.varType->is_same_inst(*funDecl.varType);
+                if (isSameInst && d.defined && withDefinition) {
+                    *err = true;
+                    add_err(std::string("Function [") + std::string(funDecl.varName) + "] already defined", _cur);
+                }
+                else if (!isSameInst) {
+                    add_err(std::string("Function [") + std::string(funDecl.varName) + "] had another prototype in previous declaration", _cur);
+                }
+                else {
+                    d.defined = withDefinition;
+                    wasDeclared = true;
+                }
+            }
+        }
+
+        if (!wasDeclared) {
+            _funs.push_back(FunDefined{.funDecl = funDecl, .defined = withDefinition});
+        }
+    }
+
+    set_cursor(Cursor *c) {
+        assert(c);
+        _cur = c;
+    }
+
+    Register get_free_reg() {
+        static_assert(false && "NOT IMPLEMENTED");
+    }
+
+
+    template <class ...T>
+    void take_registers(T... regs) {
+        using F = std::tuple_element_t<0, std::tuple<T...>>;
+        static_assert(std::is_same<F, Register>());
+        static_assert(false && "NOT IMPLEMENTED");
+    }
+
+    template <class ...T>
+    void free_registers(T... regs) {
+        using F = std::tuple_element_t<0, std::tuple<T...>>;
+        static_assert(std::is_same<F, Register>());
+        static_assert(false && "NOT IMPLEMENTED");
+    }
     // UsedType* struct_type(std::string_view structName, std::vector<StructField> &&fields) {
     //     UsedType tp = { ._class=UsedTypeClass::Struct, ._f = { .Struct = {
     //         .structName = structName,
@@ -265,4 +384,4 @@ public:
     }
 };
 
-
+#endif
