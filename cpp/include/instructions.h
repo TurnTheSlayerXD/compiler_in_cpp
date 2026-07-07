@@ -5,13 +5,29 @@
 constexpr int PTR_SIZE = 8;
 constexpr int FUN_PARAMS_STACK_OFF = 40;
 
-struct StackP {
-    int off;
+struct StackLoc {
+    int scopeId;
+    int stackOff;
+    std::string_view nm;
 };
 
+struct StackLocOff {
+    int scopeId;
+    int stackOff;
+    int off;
+    std::string_view nm;
+};
+
+
 enum class InstrType {
+    //has no args
     STACKALLOC,
+    // has two args
     MOV,
+
+    PUT_PARAM,
+
+    FUN,
     MARK,
 };
 
@@ -19,48 +35,63 @@ enum class InstrArgType {
     REG,
     REG_OFF,
     LIT,
+
+    STACK_LOC,
+    STACK_LOC_OFF,
+
+    PARAM,
+    NAN_INSTR,
+
+    MARK,
 };
 
-enum class Register {
-    STACK_REG,
-    P_REG_4,
-    P_REG_3,
-    P_REG_2,
-    P_REG_1,
+struct Reg {
+    int id;
 };
 
+struct RegOff {
+    Reg reg;
+    int off;
+};
+
+struct ParamIndex {
+    int p;
+};
+
+struct NanInstrArg {
+
+};
+
+struct Mark {
+    std::string_view m;
+};
 
 struct InstrArg {
     InstrArgType tp;
 
     union {
-        struct {
-            Register regId;
-        } reg;
+        Mark mark;
+
+        StackLoc st;
+        StackLocOff stOff;
+
+        Reg reg;
+        RegOff regOff;
         
-        struct {
-            Register regId;
-            size_t off;
-        } mem;
-        
+        ParamIndex paramIndex;
+        NanInstrArg nan;
     } data;
 };
 
+constexpr auto NanInstrArgType = InstrArg{ .tp = InstrArgType::NAN_INSTR, .data = { .nan = {} }};
 
-struct RegisterWithOffset {
-    Register regId;
-    size_t off;
-};
-
-RegisterWithOffset reg_off(Register regId, size_t off) {
-    return {.regId = regId, .off = off};
-}
 
 struct Instr {
     InstrType tp;
     InstrArg arg1;
     InstrArg arg2;
     InstrArg arg3;
+    int size;
 };
 
 #endif

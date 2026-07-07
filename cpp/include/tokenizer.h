@@ -6,8 +6,9 @@
 #include <optional>
 #include <vector>
 #include <algorithm>
-
 #include <cassert>
+
+#include <help.h>
 
 #define MACRO_SEPARATORS \
     X("=",  ASSIGN) \
@@ -172,7 +173,7 @@ struct Cursor {
 
 
 std::string to_string(const Cursor& c) {
-    static_assert(false && "NOT IMPLEMENTED");
+    return string_format("Row: %llu, Col: %llu", c.row, c.col); 
 }
 
 struct Token {

@@ -11,7 +11,12 @@ enum class UsedTypeClass {
 };
 
 
-struct StructField;
+struct UsedType;
+
+struct StructField {
+    std::string_view fieldName;
+    UsedType* fieldType;
+};
 
 struct UsedType {
     UsedTypeClass _class;
@@ -43,8 +48,24 @@ struct UsedType {
 
     } _f;
 
-    size_t type_size() {
-        static_assert(false && "NOT IMPLEMENTED");
+
+    std::string_view name() {
+        assert(_class == UsedTypeClass::Type);
+        return _f.Type.name;
+    }
+
+    bool is_struct_kind() {
+        assert(_class == UsedTypeClass::Type);
+        return _f.Type.isStructKind;
+    }
+
+    StructField* fields() {
+        assert(_class == UsedTypeClass::Type && _f.Type.isStructKind);
+        return _f.Type.fields;
+    }
+    size_t field_count() {
+        assert(_class == UsedTypeClass::Type && _f.Type.isStructKind);
+        return _f.Type.fieldCount;
     }
 
     UsedType* ret_type() {
@@ -52,19 +73,47 @@ struct UsedType {
         return _f.Fun.retType;
     }
 
-    std::string_view name() {
-        assert(_class == UsedTypeClass::Type);
-        return _f.Type.name;
+    UsedType** param_types() {
+        assert(_class == UsedTypeClass::Fun);
+        return _f.Fun.paramTypes;
+    }
+    size_t param_count() {
+        assert(_class == UsedTypeClass::Fun);
+        return _f.Fun.paramCount;
     }
 
-    std::vector<UsedType*> param_types() {
-        assert(_class == UsedTypeClass::Fun);
-        std::vector<UsedType*> vec(_f.Fun.paramCount);
-        for (size_t i = 0; i < _f.Fun.paramCount; ++i) {
-            vec[i] = _f.Fun.paramTypes[i];
+    size_t type_size() {
+        switch(_class) {
+            case UsedTypeClass::Type:
+                if (is_struct_kind()) {
+                    size_t s = 0;
+                    for (size_t i = 0; i < field_count(); ++i) {
+                        s += fields()[i].fieldType->type_size();
+                    }
+                    return s;
+                }
+                if (name() == "int") {
+                    return 4;
+                } 
+                if (name() == "char") {
+                    return 1;
+                }
+                if (name() == "void") {
+                    assert(false && "void does not have size!");
+                }
+                assert(false && "UNREACHABLE");
+                return 0;
+            case UsedTypeClass::Ptr:
+                return PTR_SIZE;
+            case UsedTypeClass::Fun:
+                return PTR_SIZE;
+            default:
+                assert(false && "UNREACHABLE");
+                return 0;
         }
-        return vec;
     }
+
+    
     
     bool is_same_inst(const UsedType &rhs) {
         if (_class != rhs._class) {
@@ -92,11 +141,6 @@ struct UsedType {
     bool operator==(const UsedType& rhs) = delete;
 };
 
-struct StructField {
-    std::string_view fieldName;
-    UsedType* fieldType;
-};
-
 struct VarDecl {
     std::string_view varName;
     UsedType *varType;
@@ -104,19 +148,40 @@ struct VarDecl {
 
 struct VarLoc {
     VarDecl decl;
-    StackP stackP;
+    StackLoc stackLoc;
+    bool indirect;
 };
 
+struct FunLoc {
+    VarDecl decl;
+    bool wasDefined;
+};
+
+static int _staticScopeCounter = 1;
 class Scope {
+    std::vector<std::array<char, 20>> _markHeap;
+
 public:
+    int id;
+    int markCounter;
+    int stackOff;
+
     Scope* parentScope;
     std::vector<Scope*> subscopes;
 
     std::vector<VarLoc> vars;
+    std::vector<FunLoc> funs;
+
     std::vector<UsedType*> types;
 
-    Scope(Scope *parentScope) : parentScope{parentScope} {
-        
+    Scope(Scope *parentScope): id{_staticScopeCounter++}, markCounter{0}, stackOff{0}, parentScope{parentScope} {
+    }
+
+    Mark next_mark() {
+        _markHeap.push_back({});
+        auto &s = _markHeap.back();
+        std::snprintf(s.data(), s.size(), "sc_%d_m_%d", id, markCounter++);
+        return Mark{.m =  std::string_view(s.data(), s.size())};
     }
 
     Scope(const Scope& other) = delete;
@@ -126,37 +191,32 @@ public:
     Scope& operator=(Scope&& other) = delete;
 };
 
-struct FunDefined {
-    std::string_view funName;
-    UsedType* funType;
-    bool defined;
-};
-
 class Context {
 public:
 
+    std::vector<Instr> _instrs;
+
     std::vector<UsedType*> _typeSt; 
     std::vector<Scope*> _scopeSt; 
-
-    std::vector<FunDefined> _funs;
 
     Scope *curScope;
 
     std::vector<std::string> _errs;
 
-    Cursor* _cur;
+    const Cursor* _cur;
 
     Context() 
-    : _typeSt{
+    : _typeSt {
 
-        #define LOC(NAME)\
-        new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = NAME,  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }})
-        LOC("int"),
-        LOC("void"),
-        LOC("char"),
-        #undef LOC
-        
-    }, _cur{nullptr} 
+        new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = "int",  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }}),
+
+
+        new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = "void",  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }}),
+
+        new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = "char",  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }}),
+
+    }, _cur{nullptr}
+
     {
         curScope = new Scope(nullptr);
         _scopeSt.push_back(curScope);
@@ -183,7 +243,7 @@ public:
         return *it;
     }
 
-    void add_err(std::string &&msg, Cursor* cur) {
+    void set_err(std::string &&msg, const Cursor* cur) {
         assert(cur);
         _errs.push_back(std::string("Error at") + to_string(*cur) + msg);
     }
@@ -236,24 +296,7 @@ public:
         return *it;
     }
 
-    void add_var(VarLoc var, bool *err) {
-        if (std::find_if(curScope->vars.begin(), curScope->vars.end(), [&var](const auto &d){ return var.decl.varName == d.decl.varName; }) != curScope->vars.end()) {
-            *err = true;
-            add_err(std::string("Already had var with name [") + std::string(var.decl.varName) + "]", _cur);
-        }
-        *err = false;
-        curScope->vars.push_back(var);
-    }
-
-    void add_type(UsedType* type, bool *err) {
-        assert(type->_class == UsedTypeClass::Type);
-        if (std::find_if(curScope->types.begin(), curScope->types.end(), [&type](const auto &d) { return type->name() == d->name(); }) 
-        != curScope->types.end()) {
-            *err = true;
-        }
-        curScope->types.push_back(type);
-    }
-
+    
     void push_scope() {
         assert(curScope);
         Scope* newScope = new Scope(curScope);
@@ -266,95 +309,107 @@ public:
         curScope = curScope->parentScope;
     }
 
-    void set_ret_addr_p(StackP ) {
-        static_assert(false);
+    StackLoc stack_alloc(size_t size) {
+        curScope->stackOff += size;
+        return StackLoc{.scopeId = curScope->id, .stackOff=int(curScope->stackOff-size), .nm = ""};
     }
 
-    StackP stack_alloc(size_t size) {
-        static_assert(false);
+    StackLoc stack_alloc(size_t size, std::string_view nameToInclude) {
+        curScope->stackOff += size;
+        return StackLoc{.scopeId = curScope->id, .stackOff=int(curScope->stackOff-size), .nm = nameToInclude};
     }
 
-    void add_i(InstrType iType, Register regSrc, Register regDst) {
-        static_assert(false && "Not implemented");
+    void add_param_i(ParamIndex p, StackLoc st) {
+        _instrs.push_back(Instr{
+            .tp = InstrType::PUT_PARAM,
+            .arg1 = {.tp = InstrArgType::PARAM, .data = { .paramIndex = p }},
+            .arg2 = {.tp = InstrArgType::STACK_LOC, .data = { .st = st }},
+            .arg3 = NanInstrArgType,
+
+            .size = -1,
+        });
     }
 
-    void add_i(InstrType iType, Register reg, RegisterWithOffset arg) {
-        static_assert(false && "Not implemented");
+    void add_i(Instr i) {
+        _instrs.push_back(i);
     }
 
-    void add_i(InstrType iType, Register reg, StackP stP) {
-        static_assert(false && "Not implemented");
+    void add_i(InstrType iType, int size, Reg src, Reg dst) {
+        _instrs.push_back(Instr{
+            .tp = iType,
+            .arg1 = { .tp = InstrArgType::REG, .data = {.reg = src }},
+            .arg2 = { .tp = InstrArgType::REG, .data = {.reg = dst }},
+            .arg3 = NanInstrArgType,
+            .size = size,
+        });
     }
 
-    void add_i(InstrType iType, RegisterWithOffset arg, Register reg) {
-        static_assert(false && "Not implemented");
+    void add_i(InstrType iType, int size, Reg src, RegOff dst) {
+        _instrs.push_back(Instr{
+            .tp = iType,
+            .arg1 = {.tp = InstrArgType::REG, .data = { .reg = src }},
+            .arg2 = {.tp = InstrArgType::REG_OFF, .data = { .regOff = dst }},
+            .arg3 = NanInstrArgType,
+            .size = size,
+        });
     }
 
-    void add_i(InstrType iType, StackP stP, Register reg) {
-        static_assert(false && "Not implemented");
+    void add_i(InstrType iType, int size, RegOff src, Reg dst) {
+        _instrs.push_back(Instr{
+            .tp = iType,
+            .arg1 = {.tp = InstrArgType::REG_OFF, .data = { .regOff = src }},
+            .arg2 = {.tp = InstrArgType::REG, .data = { .reg = dst }},
+            .arg3 = NanInstrArgType,
+            .size = size,
+        });
     }
 
-    void add_i(InstrType iType, InstrArg arg) {
-        static_assert(false && "Not implemented");
+    void add_i(InstrType iType, int size, Reg src, StackLoc dst) {
+        _instrs.push_back(Instr{
+            .tp = iType,
+            .arg1 = {.tp = InstrArgType::REG, .data = { .reg = src }},
+            .arg2 = {.tp = InstrArgType::STACK_LOC, .data = { .st = dst }},
+            .arg3 = NanInstrArgType,
+            .size = size,
+        });
     }
 
-
-    void add_fun(std::string_view funName, UsedType* funType, bool withDefinition, bool *err) {
-        assert(funType->_class == UsedTypeClass::Fun);
-
-        bool wasDeclared = false;
-        for (auto &d: _funs) {
-            if (d.funName == funName ) {
-                bool isSameInst = d.funType == funType;
-                if (isSameInst && d.defined && withDefinition) {
-                    *err = true;
-                    add_err(std::string("Function [") + std::string(funName) + "] already defined", _cur);
-                }
-                else if (!isSameInst) {
-                    add_err(std::string("Function [") + std::string(funName) + "] had another prototype in previous declaration", _cur);
-                }
-                else {
-                    d.defined = withDefinition;
-                    wasDeclared = true;
-                }
-            }
-        }
-
-        if (!wasDeclared) {
-            _funs.push_back({.funName = funName, .funType = funType, .defined = withDefinition});
-        }
+    void add_i(InstrType iType, int size, StackLoc src, Reg dst) {
+        _instrs.push_back(Instr{
+            .tp = iType,
+            .arg1 = {.tp = InstrArgType::STACK_LOC, .data = { .st = src }},
+            .arg2 = {.tp = InstrArgType::REG, .data = { .reg = dst }},
+            .arg3 = NanInstrArgType,
+            .size = size,
+        });
     }
 
-    void add_mark(std::string_view mark) {
-        static_assert(false && "NOT IMPLEMENTED");
+    Mark add_mark() {
+        Mark m = curScope->next_mark();
+        _instrs.push_back(Instr {
+            .tp = InstrType::MARK,
+            .arg1 = {.tp = InstrArgType::MARK, .data = { .mark = m }},
+            .arg2 = NanInstrArgType,
+            .arg3 = NanInstrArgType,
+            .size = -1,
+        });
+        return m;
     }
 
-    std::string_view auto_add_mark() {
-        static_assert(false && "NOT IMPLEMENTED");
-    }
-
-    void set_cursor(Cursor *c) {
+    void set_cursor(const Cursor *c) {
         assert(c);
         _cur = c;
     }
 
-    Register get_free_reg() {
-        static_assert(false && "NOT IMPLEMENTED");
-    }
-
-
-    template <class ...T>
-    void take_registers(T... regs) {
-        using F = std::tuple_element_t<0, std::tuple<T...>>;
-        static_assert(std::is_same<F, Register>());
-        static_assert(false && "NOT IMPLEMENTED");
+    Reg get_free_reg() {
+        // static_assert(false && "NOT IMPLEMENTED");
     }
 
     template <class ...T>
     void free_registers(T... regs) {
         using F = std::tuple_element_t<0, std::tuple<T...>>;
-        static_assert(std::is_same<F, Register>());
-        static_assert(false && "NOT IMPLEMENTED");
+        static_assert(std::is_same<F, Reg>());
+        // static_assert(false && "NOT IMPLEMENTED");
     }
     // UsedType* struct_type(std::string_view structName, std::vector<StructField> &&fields) {
     //     UsedType tp = { ._class=UsedTypeClass::Struct, ._f = { .Struct = {
@@ -392,5 +447,32 @@ public:
         }
     }
 };
+
+
+void ctx_set_var(Context &ctx, VarLoc var, bool *err) {
+    auto curScope = ctx.curScope;
+    assert(curScope);
+    if (std::find_if(curScope->vars.begin(), curScope->vars.end(), [&var](const auto &d){ return var.decl.varName == d.decl.varName; }) != curScope->vars.end()) {
+        *err = true;
+        ctx.set_err(std::string("Already had var with name [") + std::string(var.decl.varName) + "]", ctx._cur);
+        return;
+    }
+
+    *err = false;
+    curScope->vars.push_back(var);
+}
+
+void ctx_set_type(Context &ctx, UsedType* type, bool *err) {
+    auto curScope = ctx.curScope;
+    assert(curScope);
+    assert(type->_class == UsedTypeClass::Type);
+    if (std::find_if(curScope->types.begin(), curScope->types.end(), [&type](const auto &d) { return type->name() == d->name(); }) 
+    != curScope->types.end()) {
+        *err = true;
+    }
+    curScope->types.push_back(type);
+}
+
+
 
 #endif

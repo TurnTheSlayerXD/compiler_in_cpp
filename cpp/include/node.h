@@ -159,7 +159,7 @@ public:
         return tok().text;
     }
 
-    Token tok() {
+    const Token& tok() const {
         assert(type == NodeType::Leaf && "Should not be accessed");
         return _tok;
     }
@@ -185,8 +185,21 @@ public:
         return buf;
     }
 
-    Cursor* get_first_cursor() {
-        static_assert(false && "NOT IMPLEMENTED");
+    const Cursor* get_first_cursor() {
+        std::vector<Node*> st = {this};
+        while (!st.empty()) {
+            Node* n = st.back();
+            st.pop_back();
+            if (n->type == NodeType::Leaf) {
+                return &n->tok().cur;
+            }   
+            for (size_t i = n->children.size(); i > 0; --i) {
+                st.push_back(n->children[i-1]);
+            }
+        }
+
+        assert(false && "UNREACHABLE");
+        return nullptr;
     }
 
     static void set_indent(size_t count, std::string&buf) {
