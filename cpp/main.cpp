@@ -12,7 +12,7 @@
 
 #include <tree_preprocessing.h>
 
-// #include <code_builder.h> 
+#include <code_builder.h> 
 
 const char *line = "\n____________________________________________________________\n";
 
@@ -20,23 +20,18 @@ const char *line = "\n__________________________________________________________
 int main() {
     // const char *prog = "int* x = 1;";
     const char *prog = 
-    "char*const zoo();"
-    "char*const bar(int);"
-    "char*const fuu(int , char *const *const );"
-    // "int* fuu(int , char, char*);"
-    "int main(int argc, const char* aboba, int x[], char** argv) { "
-    "    for (int i = 0; i < argc; i = i + 1) { "
-    "       while (1) { "
-    "           if(x > 4) { "
-    "               print(suka); "
-    "               break; "
-    "           } "
-    "           else { "
-    "               go_fuck_urself(6)[9]; "
-    "           } "
-    "       } "
-    "    } "
-    "    continue; "
+    "void printf(const char *fmt);"
+    "int main(int argc, char** argv) { "
+    "   int i = 0;"
+    "   while(i < argc) {"
+    "      if(i % 2 == 0) { "
+    "          printf(\"even\"); "
+    "      }"
+    "      else { "
+    "          printf(\"odd\")"
+    "      } "
+    "      i = i + 1;"
+    "   }"
     "}";
 
     // const char *prog = "fu[0]((0), (1) )()()[0];";

@@ -9,9 +9,9 @@
 
 class Interpreter {
 public:
-    virtual bool can_handle(Node *n);
-    virtual void interpret(Node *n, bool *err);
-    virtual ~Interpreter();
+    virtual bool can_handle(Node *n) = 0;
+    virtual void interpret(Node *n, bool *err) = 0;
+    virtual ~Interpreter() = default;
 };
 
 class TypeuseInterpreter: public Interpreter {
@@ -21,7 +21,11 @@ public:
 
     TypeuseInterpreter(Context &ctx): ctx{ctx} {}
 
-    void interpret(Node *n, bool *err) {
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::TypeUse;
+    }
+
+    void interpret(Node *n, bool *err) override {
         *err = false;
 
         assert(n && "Unexpected nullptr");
@@ -87,7 +91,11 @@ public:
 
     VarDeclInterpreter(Context &ctx): ctx{ctx} {}
 
-    void interpret(Node *n, bool *err) {
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::VarDecl;
+    }
+
+    void interpret(Node *n, bool *err) override {
         assert(false && "NOT IMPLEMENTED");
         assert(n->type == NodeType::VarDecl);
 
@@ -103,7 +111,7 @@ public:
     }
 };
 
-class FunDeclInterpreter {
+class FunDeclInterpreter: public Interpreter {
 public:
     Context &ctx;
     std::vector<VarDecl> paramDecls;
@@ -111,8 +119,12 @@ public:
     UsedType *funType;
 
     FunDeclInterpreter(Context &ctx): ctx{ctx}, funType{nullptr} {}
+    
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::FunDecl;
+    }
 
-    void interpret(Node *n, bool *err) {
+    void interpret(Node *n, bool *err) override {
         *err = false;
         
         assert(n->type == NodeType::FunDecl);
@@ -151,11 +163,8 @@ public:
                 t.interpret(firstParam, err);
                 if (*err) 
                     return;
-                VarDecl varDecl = t.varDecl;
-                paramType = varDecl.varType;
-                paramDecls.push_back(varDecl);
-                if (*err) 
-                    return;
+                paramType = t.varDecl.varType;
+                paramDecls.push_back(t.varDecl);
             }
             else {
                 TypeuseInterpreter t(ctx);
@@ -199,24 +208,33 @@ public:
 
         funType = ctx.fun_type(retType, std::move(paramTypes));
     }
-    
 };
-
-
 
 class BodyInterpreter: public Interpreter {
 public:
     Context &ctx;
     BodyInterpreter(Context &ctx): ctx{ctx}{}
 
+    bool can_handle(Node *n) override {
+        (void) n;
+        assert(false && "SHOULD NOT BE CALLED");
+        return false;
+    }
+
     void interpret(Node *bodyNode, bool *err) override;
+
 };
 
-class AssignExprInterpreter: public Interpreter {
+class StatementExprInterpreter: public Interpreter {
 public:
     Context &ctx;
-    AssignExprInterpreter(Context &ctx): ctx{ctx}{}
+    StatementExprInterpreter(Context &ctx): ctx{ctx}{}
+
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::Statement;
+    }
     void interpret(Node *n, bool *err) override {
+
     }
 };
 
@@ -224,24 +242,67 @@ class ForExprInterpreter: public Interpreter {
 public:
     Context &ctx;
     ForExprInterpreter(Context &ctx): ctx{ctx}{}
+
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::ForStatement;
+    }
+
     void interpret(Node *n, bool *err) override {
     }
 };
+
+
+class WhileExprInterpreter: public Interpreter {
+public:
+    Context &ctx;
+    WhileExprInterpreter(Context &ctx): ctx{ctx}{}
+
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::WhileStatement;
+    }
+
+    void interpret(Node *n, bool *err) override {
+        
+    }
+};
+
+
+class WhileExprInterpreter: public Interpreter {
+public:
+    Context &ctx;
+    WhileExprInterpreter(Context &ctx): ctx{ctx}{}
+
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::WhileStatement;
+    }
+
+    void interpret(Node *n, bool *err) override {
+        
+    }
+};
+
+
 
 class IfExprInterpreter: public Interpreter {
 public:
     Context &ctx;
     IfExprInterpreter(Context &ctx): ctx{ctx}{}
+
+    bool can_handle(Node *n) override {
+        return n->type == NodeType::IfStatement;
+    }
+
     void interpret(Node *n, bool *err) override {
     }
 };
 
 void BodyInterpreter::interpret(Node *bodyNode, bool *err) {
     IfExprInterpreter ifE(ctx);
+    WhileExprInterpreter forE(ctx);
     ForExprInterpreter forE(ctx);
-    AssignExprInterpreter assignE(ctx);
+    StatementExprInterpreter statementE(ctx);
 
-    std::initializer_list<Interpreter*> interpreters = { &ifE, &forE, &assignE};
+    std::initializer_list<Interpreter*> interpreters = { &ifE, &forE, &statementE};
 
     for (auto &child: bodyNode->children) {
         for (auto &interp: interpreters) {
@@ -249,7 +310,6 @@ void BodyInterpreter::interpret(Node *bodyNode, bool *err) {
                 interp->interpret(child, err);
                 if (*err)
                     return;
-
                 break;
             }
         }
@@ -323,22 +383,22 @@ public:
 
             for (const auto &d: t.paramDecls) {
                 bool indirect = d.varType->type_size() > PTR_SIZE;
-                VarLoc varLoc = {.decl = d, .stackLoc = ctx.stack_alloc(PTR_SIZE, d.varName), .indirect = indirect};
+                VarLoc varLoc = {.decl = d, .stackLoc = ctx.stack_alloc(PTR_SIZE), .indirect = indirect};
                 ctx_set_var(ctx, varLoc, err);
                 if (*err)
                     return;
                 ctx.add_param_i(ParamIndex{.p = paramIndex++}, varLoc.stackLoc);
             }
 
-            ctx.pop_scope();
-
             auto bodyNode = n->child(3);
-
             BodyInterpreter t(ctx);
             t.interpret(bodyNode, err);
+
             if (*err) {
                 return;
             }
+
+            ctx.pop_scope();
         }
     }
 

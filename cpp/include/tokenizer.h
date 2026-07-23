@@ -173,7 +173,7 @@ struct Cursor {
 
 
 std::string to_string(const Cursor& c) {
-    return string_format("Row: %llu, Col: %llu", c.row, c.col); 
+    return str_fmt("Row: %llu, Col: %llu", c.row, c.col); 
 }
 
 struct Token {

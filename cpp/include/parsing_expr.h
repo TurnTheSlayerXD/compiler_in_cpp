@@ -7,7 +7,7 @@
 const Expr* init_parsing_expr(Parser& p) {
     using enum TokenType;
 
-    auto operand = p.or_("bracket_op", "un_op", "brace", WORD, NUM_INT, NUM_FLOAT);
+    auto operand = p.or_("bracket_op", "un_op", "brace", WORD, NUM_INT, NUM_FLOAT, CHAR, STRING);
 
     auto unOp = p.or_(
         p.seq(NodeType::Op_Un, p.or_(PLUS, MINUS, MUL, ADDR, INCR, DECR), operand)

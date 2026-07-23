@@ -157,12 +157,11 @@ struct FunLoc {
     bool wasDefined;
 };
 
-static int _staticScopeCounter = 1;
 class Scope {
     std::vector<std::array<char, 20>> _markHeap;
 
 public:
-    int id;
+    std::string id;
     int markCounter;
     int stackOff;
 
@@ -174,13 +173,20 @@ public:
 
     std::vector<UsedType*> types;
 
-    Scope(Scope *parentScope): id{_staticScopeCounter++}, markCounter{0}, stackOff{0}, parentScope{parentScope} {
+    Scope(Scope *parentScope): markCounter{0}, stackOff{0}, parentScope{parentScope} {
+        if (parentScope) {
+            id = str_fmt("%s_%llu", parentScope->id.c_str(), parentScope->subscopes.size());
+            parentScope->subscopes.push_back(this);
+        }
+        else {
+            id = "MAIN";
+        }
     }
 
     Mark next_mark() {
         _markHeap.push_back({});
         auto &s = _markHeap.back();
-        std::snprintf(s.data(), s.size(), "sc_%d_m_%d", id, markCounter++);
+        std::snprintf(s.data(), s.size(), "sc_%s_m_%d", id.c_str(), markCounter++);
         return Mark{.m =  std::string_view(s.data(), s.size())};
     }
 
@@ -311,18 +317,13 @@ public:
 
     StackLoc stack_alloc(size_t size) {
         curScope->stackOff += size;
-        return StackLoc{.scopeId = curScope->id, .stackOff=int(curScope->stackOff-size), .nm = ""};
-    }
-
-    StackLoc stack_alloc(size_t size, std::string_view nameToInclude) {
-        curScope->stackOff += size;
-        return StackLoc{.scopeId = curScope->id, .stackOff=int(curScope->stackOff-size), .nm = nameToInclude};
+        return StackLoc{.scopeId = curScope->id, .stackOff=int(curScope->stackOff-size)};
     }
 
     void add_param_i(ParamIndex p, StackLoc st) {
         _instrs.push_back(Instr{
             .tp = InstrType::PUT_PARAM,
-            .arg1 = {.tp = InstrArgType::PARAM, .data = { .paramIndex = p }},
+            .arg1 = {.tp = InstrArgType::PARAM, .data = { .param = p }},
             .arg2 = {.tp = InstrArgType::STACK_LOC, .data = { .st = st }},
             .arg3 = NanInstrArgType,
 
@@ -386,7 +387,7 @@ public:
 
     Mark add_mark() {
         Mark m = curScope->next_mark();
-        _instrs.push_back(Instr {
+        _instrs.push_back(Instr{
             .tp = InstrType::MARK,
             .arg1 = {.tp = InstrArgType::MARK, .data = { .mark = m }},
             .arg2 = NanInstrArgType,
@@ -402,13 +403,12 @@ public:
     }
 
     Reg get_free_reg() {
-        // static_assert(false && "NOT IMPLEMENTED");
+        static_assert(false && "NOT IMPLEMENTED");
     }
 
     template <class ...T>
     void free_registers(T... regs) {
-        using F = std::tuple_element_t<0, std::tuple<T...>>;
-        static_assert(std::is_same<F, Reg>());
+        static_assert(std::is_same<std::tuple_element_t<0, std::tuple<T...>>, Reg>());
         // static_assert(false && "NOT IMPLEMENTED");
     }
     // UsedType* struct_type(std::string_view structName, std::vector<StructField> &&fields) {
@@ -461,7 +461,7 @@ void ctx_set_var(Context &ctx, VarLoc var, bool *err) {
     *err = false;
     curScope->vars.push_back(var);
 }
-
+    
 void ctx_set_type(Context &ctx, UsedType* type, bool *err) {
     auto curScope = ctx.curScope;
     assert(curScope);
