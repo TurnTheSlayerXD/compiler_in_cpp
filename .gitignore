@@ -3,3 +3,4 @@
 *.pdb
 *.ilk
 *.txt
+.DS_Store
