@@ -21,7 +21,8 @@ int get_order_of_op_node(Node *v) {
         case AND: return 1;
         case GR: case LE: case GR_E: case LE_E: case EQ: return 2;
         case PLUS: case MINUS: return 3;
-        case MUL: case DIV: return 4;
+        case PERCENT: return 4;
+        case MUL: case DIV: return 5;
         default: assert(false && "UNEXPECTED TOKEN TYPE"); return -1;
     } 
 }

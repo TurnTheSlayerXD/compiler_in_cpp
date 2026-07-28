@@ -2,12 +2,23 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
-            "command": "nmake gdb /nologo",
+            "label": "debug_build",
+            "command": "make gdb",
             "args": [],
             "type": "shell",
             "problemMatcher": [],
             "group": "build"
         },
+        {
+            "label": "build",
+            "command": "clear && make all",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
     ]
 }

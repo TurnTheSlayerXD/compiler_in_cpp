@@ -17,6 +17,7 @@
     X("*",  MUL) \
     X("/",  DIV) \
     X("&",  ADDR)\
+    X("%",  PERCENT)\
     X("++", INCR) \
     X("--", DECR) \
     X(">",  GR)\
@@ -61,6 +62,7 @@ enum class TokenType {
     ADDR,
     INCR,
     DECR,
+    PERCENT,
     GR,
     LE,
     GR_E,
@@ -110,6 +112,7 @@ std::string_view to_string(TokenType t) {
         case MINUS : return "`-`";
         case MUL : return "`*`";
         case DIV : return "`/`";
+        case PERCENT : return "%";
         case L_BR : return "`(`";
         case R_BR : return "`)`";
         case WORD : return "`word`";

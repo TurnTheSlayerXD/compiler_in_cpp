@@ -13,9 +13,9 @@ INCLUDE=\
 ./include/tree_preprocessing.h\
 ./include/code_builder.h\
 ./include/context.h\
-./include/instructions.h
-
-
+./include/instructions.h\
+./include/to_asm.h\
+./include/instr_to_str.h
 
 $(OUT): $(SRC) $(INCLUDE)
 	$(CC) -o $(OUT) $(FLAGS) -I./include -O2 $(SRC)

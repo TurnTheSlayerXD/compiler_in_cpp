@@ -2,144 +2,8 @@
 #define CONTEXT_H
 
 #include <instructions.h>
-
-enum class UsedTypeClass {
-    Type,
-    Ptr,
-    Arr,
-    Fun,
-};
-
-
-struct UsedType;
-
-struct StructField {
-    std::string_view fieldName;
-    UsedType* fieldType;
-};
-
-struct UsedType {
-    UsedTypeClass _class;
-
-    union {
-        struct Type {
-            std::string_view name;
-            bool isConst;
-
-            bool isStructKind;
-            StructField* fields;
-            size_t fieldCount;
-        } Type;
-
-        struct Ptr {
-            UsedType* ptrTo;
-            bool isConstPtr;
-        } Ptr;
-
-        // struct Arr {
-        //     UsedType* arrayOf;
-        // } Arr;
-
-        struct Fun {
-            UsedType* retType;
-            UsedType** paramTypes;
-            size_t paramCount;
-        } Fun;
-
-    } _f;
-
-
-    std::string_view name() {
-        assert(_class == UsedTypeClass::Type);
-        return _f.Type.name;
-    }
-
-    bool is_struct_kind() {
-        assert(_class == UsedTypeClass::Type);
-        return _f.Type.isStructKind;
-    }
-
-    StructField* fields() {
-        assert(_class == UsedTypeClass::Type && _f.Type.isStructKind);
-        return _f.Type.fields;
-    }
-    size_t field_count() {
-        assert(_class == UsedTypeClass::Type && _f.Type.isStructKind);
-        return _f.Type.fieldCount;
-    }
-
-    UsedType* ret_type() {
-        assert(_class == UsedTypeClass::Fun);
-        return _f.Fun.retType;
-    }
-
-    UsedType** param_types() {
-        assert(_class == UsedTypeClass::Fun);
-        return _f.Fun.paramTypes;
-    }
-    size_t param_count() {
-        assert(_class == UsedTypeClass::Fun);
-        return _f.Fun.paramCount;
-    }
-
-    size_t type_size() {
-        switch(_class) {
-            case UsedTypeClass::Type:
-                if (is_struct_kind()) {
-                    size_t s = 0;
-                    for (size_t i = 0; i < field_count(); ++i) {
-                        s += fields()[i].fieldType->type_size();
-                    }
-                    return s;
-                }
-                if (name() == "int") {
-                    return 4;
-                } 
-                if (name() == "char") {
-                    return 1;
-                }
-                if (name() == "void") {
-                    assert(false && "void does not have size!");
-                }
-                assert(false && "UNREACHABLE");
-                return 0;
-            case UsedTypeClass::Ptr:
-                return PTR_SIZE;
-            case UsedTypeClass::Fun:
-                return PTR_SIZE;
-            default:
-                assert(false && "UNREACHABLE");
-                return 0;
-        }
-    }
-
-    
-    
-    bool is_same_inst(const UsedType &rhs) {
-        if (_class != rhs._class) {
-            return false;
-        }
-        switch (_class) {
-            case UsedTypeClass::Type: 
-                return _f.Type.name == rhs._f.Type.name && _f.Type.isConst == rhs._f.Type.isConst;
-            case UsedTypeClass::Ptr:
-                return _f.Ptr.ptrTo == rhs._f.Ptr.ptrTo && _f.Ptr.isConstPtr == rhs._f.Ptr.isConstPtr;
-            case UsedTypeClass::Fun: 
-                if (_f.Fun.retType != rhs._f.Fun.retType) return false;
-                if (_f.Fun.paramCount != rhs._f.Fun.paramCount) return false;
-                for (size_t i = 0; i < _f.Fun.paramCount; ++i) {
-                    if (_f.Fun.paramTypes[i] != rhs._f.Fun.paramTypes[i]) 
-                        return false;
-                }
-                return true;
-            default: 
-                assert(false && "UNREACHABLE");
-                return false;
-        }
-    }
-
-    bool operator==(const UsedType& rhs) = delete;
-};
+#include <used_type.h>
+#include <help.h>
 
 struct VarDecl {
     std::string_view varName;
@@ -179,7 +43,7 @@ public:
             parentScope->subscopes.push_back(this);
         }
         else {
-            id = "MAIN";
+            id = "OUTER";
         }
     }
 
@@ -213,14 +77,9 @@ public:
 
     Context() 
     : _typeSt {
-
         new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = "int",  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }}),
-
-
         new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = "void",  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }}),
-
         new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = {.name = "char",  .isConst = false, .isStructKind = false, .fields = nullptr, .fieldCount = 0 } }}),
-
     }, _cur{nullptr}
 
     {
@@ -242,7 +101,18 @@ public:
             return arg->_f.Type.name == nm && arg->_f.Type.isConst == isConst; 
         });
         if (it == _typeSt.end()) {
-            UsedType* newPtr = new UsedType({ ._class = UsedTypeClass::Type, ._f = { .Type = { .name = nm, .isConst = isConst, .isStructKind = false, .fields = nullptr, .fieldCount = 0 }}});
+            UsedType* newPtr = new UsedType({ 
+                ._class = UsedTypeClass::Type, 
+                ._f = { 
+                    .Type = { 
+                        .name = nm, 
+                        .isConst = isConst, 
+                        .isStructKind = false, 
+                        .fields = nullptr, 
+                        .fieldCount = 0 
+                    }
+                }
+            });
             _typeSt.push_back(newPtr);
             return newPtr;
         }
@@ -250,7 +120,7 @@ public:
     }
 
     void set_err(std::string &&msg, const Cursor* cur) {
-        assert(cur);
+        ex_assert(cur);
         _errs.push_back(std::string("Error at") + to_string(*cur) + msg);
     }
 
@@ -304,29 +174,45 @@ public:
 
     
     void push_scope() {
-        assert(curScope);
+        ex_assert(curScope);
         Scope* newScope = new Scope(curScope);
         curScope->subscopes.push_back(newScope);
         curScope = newScope;
+        add_i(Instr {
+            .tp = InstrType::SCOPE_START, 
+            .arg1 = {.tp = InstrArgType::SCOPE_REF, .data = { .scope = curScope }}, 
+            .arg2 = NanInstrarg, 
+            .arg3 = NanInstrarg, 
+            .size = -1 
+        });
     }
 
     void pop_scope() {
-        assert(curScope->parentScope);
+        ex_assert(curScope->parentScope);
         curScope = curScope->parentScope;
+        add_i(Instr {
+            .tp = InstrType::SCOPE_END, 
+            .arg1 = {.tp = InstrArgType::SCOPE_REF, .data = { .scope = curScope }}, 
+            .arg2 = NanInstrarg, 
+            .arg3 = NanInstrarg, .size = -1 
+        });
     }
 
     StackLoc stack_alloc(size_t size) {
         curScope->stackOff += size;
-        return StackLoc{.scopeId = curScope->id, .stackOff=int(curScope->stackOff-size)};
+        _instrs.push_back(Instr{ 
+            .tp = InstrType::STACKALLOC, 
+            .arg1 = { .tp = InstrArgType::STACK_LOC, .data = { .st = StackLoc { .scope = curScope, .stackOff = static_cast<int>(size), }}},
+        });
+        return StackLoc{.scope = curScope, .stackOff=int(curScope->stackOff-size)};
     }
 
     void add_param_i(ParamIndex p, StackLoc st) {
         _instrs.push_back(Instr{
-            .tp = InstrType::PUT_PARAM,
+            .tp = InstrType::GET_PARAM,
             .arg1 = {.tp = InstrArgType::PARAM, .data = { .param = p }},
             .arg2 = {.tp = InstrArgType::STACK_LOC, .data = { .st = st }},
-            .arg3 = NanInstrArgType,
-
+            .arg3 = NanInstrarg,
             .size = -1,
         });
     }
@@ -340,7 +226,7 @@ public:
             .tp = iType,
             .arg1 = { .tp = InstrArgType::REG, .data = {.reg = src }},
             .arg2 = { .tp = InstrArgType::REG, .data = {.reg = dst }},
-            .arg3 = NanInstrArgType,
+            .arg3 = NanInstrarg,
             .size = size,
         });
     }
@@ -350,7 +236,7 @@ public:
             .tp = iType,
             .arg1 = {.tp = InstrArgType::REG, .data = { .reg = src }},
             .arg2 = {.tp = InstrArgType::REG_OFF, .data = { .regOff = dst }},
-            .arg3 = NanInstrArgType,
+            .arg3 = NanInstrarg,
             .size = size,
         });
     }
@@ -360,7 +246,7 @@ public:
             .tp = iType,
             .arg1 = {.tp = InstrArgType::REG_OFF, .data = { .regOff = src }},
             .arg2 = {.tp = InstrArgType::REG, .data = { .reg = dst }},
-            .arg3 = NanInstrArgType,
+            .arg3 = NanInstrarg,
             .size = size,
         });
     }
@@ -370,7 +256,7 @@ public:
             .tp = iType,
             .arg1 = {.tp = InstrArgType::REG, .data = { .reg = src }},
             .arg2 = {.tp = InstrArgType::STACK_LOC, .data = { .st = dst }},
-            .arg3 = NanInstrArgType,
+            .arg3 = NanInstrarg,
             .size = size,
         });
     }
@@ -380,7 +266,17 @@ public:
             .tp = iType,
             .arg1 = {.tp = InstrArgType::STACK_LOC, .data = { .st = src }},
             .arg2 = {.tp = InstrArgType::REG, .data = { .reg = dst }},
-            .arg3 = NanInstrArgType,
+            .arg3 = NanInstrarg,
+            .size = size,
+        });
+    }
+
+    void add_i(InstrType iType, int size, Lit l, Reg dst) {
+        _instrs.push_back(Instr{
+            .tp = iType,
+            .arg1 = {.tp = InstrArgType::LIT, .data = { .lit = l }},
+            .arg2 = {.tp = InstrArgType::REG, .data = { .reg = dst }},
+            .arg3 = NanInstrarg,
             .size = size,
         });
     }
@@ -390,27 +286,18 @@ public:
         _instrs.push_back(Instr{
             .tp = InstrType::MARK,
             .arg1 = {.tp = InstrArgType::MARK, .data = { .mark = m }},
-            .arg2 = NanInstrArgType,
-            .arg3 = NanInstrArgType,
+            .arg2 = NanInstrarg,
+            .arg3 = NanInstrarg,
             .size = -1,
         });
         return m;
     }
 
     void set_cursor(const Cursor *c) {
-        assert(c);
+        ex_assert(c);
         _cur = c;
     }
 
-    Reg get_free_reg() {
-        static_assert(false && "NOT IMPLEMENTED");
-    }
-
-    template <class ...T>
-    void free_registers(T... regs) {
-        static_assert(std::is_same<std::tuple_element_t<0, std::tuple<T...>>, Reg>());
-        // static_assert(false && "NOT IMPLEMENTED");
-    }
     // UsedType* struct_type(std::string_view structName, std::vector<StructField> &&fields) {
     //     UsedType tp = { ._class=UsedTypeClass::Struct, ._f = { .Struct = {
     //         .structName = structName,
@@ -432,6 +319,7 @@ public:
     //     return *it;
     // }
 
+
     ~Context() {
         for (auto &p: _typeSt) {
             if (p->_class == UsedTypeClass::Fun) {
@@ -451,7 +339,7 @@ public:
 
 void ctx_set_var(Context &ctx, VarLoc var, bool *err) {
     auto curScope = ctx.curScope;
-    assert(curScope);
+    ex_assert(curScope);
     if (std::find_if(curScope->vars.begin(), curScope->vars.end(), [&var](const auto &d){ return var.decl.varName == d.decl.varName; }) != curScope->vars.end()) {
         *err = true;
         ctx.set_err(std::string("Already had var with name [") + std::string(var.decl.varName) + "]", ctx._cur);
@@ -461,11 +349,23 @@ void ctx_set_var(Context &ctx, VarLoc var, bool *err) {
     *err = false;
     curScope->vars.push_back(var);
 }
+
+VarLoc ctx_get_var(Context &ctx, std::string_view varName, bool *err) {
+    auto curScope = ctx.curScope;
+    auto it = std::find_if(curScope->vars.begin(), curScope->vars.end(), [&varName](const auto &d){ return varName == d.decl.varName; });
+    if (it == curScope->vars.end()) {
+        *err = true;
+        ex_assert(false && "DEBUG");
+        return {};
+    }
+
+    return *it;
+}
     
 void ctx_set_type(Context &ctx, UsedType* type, bool *err) {
     auto curScope = ctx.curScope;
-    assert(curScope);
-    assert(type->_class == UsedTypeClass::Type);
+    ex_assert(curScope);
+    ex_assert(type->_class == UsedTypeClass::Type);
     if (std::find_if(curScope->types.begin(), curScope->types.end(), [&type](const auto &d) { return type->name() == d->name(); }) 
     != curScope->types.end()) {
         *err = true;

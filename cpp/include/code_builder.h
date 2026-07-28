@@ -6,6 +6,7 @@
 #include <help.h>
 #include <context.h>
 #include <instructions.h>
+#include <charconv>
 
 class Interpreter {
 public:
@@ -28,8 +29,8 @@ public:
     void interpret(Node *n, bool *err) override {
         *err = false;
 
-        assert(n && "Unexpected nullptr");
-        assert(n->type == NodeType::TypeUse);
+        ex_assert(n && "Unexpected nullptr");
+        ex_assert(n->type == NodeType::TypeUse);
 
         bool isConst = false;
         std::string_view name;
@@ -44,6 +45,11 @@ public:
         }
 
         if (n->child(index) && 
+            n->child(index)->type == NodeType::Plug) {
+                ++index;
+            }
+
+        if (n->child(index) && 
             n->child(index)->type == NodeType::Leaf && 
             n->child(index)->tok().type == TokenType::WORD
         ) {
@@ -51,7 +57,7 @@ public:
             ++index;
         }
         
-        assert(index > 0 && "Failed traversing through NodeType::TypeUse");
+        ex_assert(index > 0 && "Failed traversing through NodeType::TypeUse");
         // if (index == 0) {
         //     *err = true;
         //     return nullptr;
@@ -59,7 +65,7 @@ public:
         UsedType *tp = ctx.type(name, isConst);
         
         if (n->child(index)) {
-            assert(n->child(index)->type == NodeType::Any);
+            ex_assert(n->child(index)->type == NodeType::Any);
             n = n->child(index);
 
             size_t index = 0;
@@ -67,13 +73,13 @@ public:
                 if (n->child(index)->type == NodeType::TypespecStar) {
                     bool isConstPtr = false;
                     if (n->child(index)->child(1)) {
-                        assert(n->child(index)->child(1)->type == NodeType::Leaf && n->child(index)->child(1)->tok().type == TokenType::KWD_CONST);
+                        ex_assert(n->child(index)->child(1)->type == NodeType::Leaf && n->child(index)->child(1)->tok().type == TokenType::KWD_CONST);
                         isConstPtr = true;
                     }
                     tp = ctx.ptr_type(tp, isConstPtr);
                 }
                 else {
-                    assert(false && "TODO: Other Typespecs");
+                    ex_assert(false && "TODO: Other Typespecs");
                 }
 
                 ++index;
@@ -96,8 +102,7 @@ public:
     }
 
     void interpret(Node *n, bool *err) override {
-        assert(false && "NOT IMPLEMENTED");
-        assert(n->type == NodeType::VarDecl);
+        ex_assert(n->type == NodeType::VarDecl);
 
         TypeuseInterpreter t(ctx);
         t.interpret(n->child(0), err);
@@ -105,7 +110,7 @@ public:
             return;
         }
         UsedType* type = t.usedType;
-        assert(n->child(1)->type == NodeType::Leaf && n->child(1)->tok().type == TokenType::WORD);
+        ex_assert(n->child(1)->type == NodeType::Leaf && n->child(1)->tok().type == TokenType::WORD);
         std::string_view name = n->child(1)->text();
         varDecl = { .varName = name, .varType = type };
     }
@@ -127,7 +132,7 @@ public:
     void interpret(Node *n, bool *err) override {
         *err = false;
         
-        assert(n->type == NodeType::FunDecl);
+        ex_assert(n->type == NodeType::FunDecl);
 
         UsedType* retType;
         std::vector<UsedType*> paramTypes;
@@ -144,18 +149,18 @@ public:
         }
         retType = t.usedType; 
 
-        assert(n->child(1) && n->child(1)->type == NodeType::Leaf);
+        ex_assert(n->child(1) && n->child(1)->type == NodeType::Leaf);
 
         funName = n->child(1)->text();
 
-        assert(n->child(2) && n->child(2)->type == NodeType::Op_Call_Brace);
+        ex_assert(n->child(2) && n->child(2)->type == NodeType::Op_Call_Brace);
         
         auto inBrace = n->child(2)->child(1);
 
         if (inBrace && inBrace->type == NodeType::FunDeclParams) {
 
             auto firstParam = inBrace->child(0);
-            assert(firstParam && (firstParam->type == NodeType::VarDecl || firstParam->type == NodeType::TypeUse));
+            ex_assert(firstParam && (firstParam->type == NodeType::VarDecl || firstParam->type == NodeType::TypeUse));
 
             UsedType* paramType;
             if (firstParam->type == NodeType::VarDecl) {
@@ -178,9 +183,9 @@ public:
 
             auto commaSeqParent = inBrace->child(1);
             if (commaSeqParent) {
-                assert(commaSeqParent->type == NodeType::Any);
+                ex_assert(commaSeqParent->type == NodeType::Any);
                 for (auto commaJoined: commaSeqParent->children) {
-                    assert(commaJoined->type == NodeType::Op_Comma);
+                    ex_assert(commaJoined->type == NodeType::Op_Comma);
                     UsedType *paramType;
                     if (commaJoined->child(1)->type == NodeType::VarDecl) {
                         VarDeclInterpreter t(ctx);
@@ -192,7 +197,7 @@ public:
                         paramType = varDecl.varType;
                     }
                     else {
-                        assert(commaJoined->child(1)->type == NodeType::TypeUse);
+                        ex_assert(commaJoined->child(1)->type == NodeType::TypeUse);
                         TypeuseInterpreter t(ctx);
                         t.interpret(commaJoined->child(1), err);
                         if (*err) {
@@ -217,12 +222,73 @@ public:
 
     bool can_handle(Node *n) override {
         (void) n;
-        assert(false && "SHOULD NOT BE CALLED");
+        ex_assert(false && "SHOULD NOT BE CALLED");
         return false;
     }
 
     void interpret(Node *bodyNode, bool *err) override;
 
+};
+
+class RvalueInterpreter : public Interpreter {
+public:
+    Context &ctx;
+    const Reg outReg;
+
+    UsedType* outType;
+
+    RvalueInterpreter(Context& ctx, Reg dstReg): ctx{ctx}, outReg{dstReg} {}
+    bool can_handle(Node *n) override {
+        return 
+            n->type == NodeType::Op_Bin || 
+            n->type == NodeType::Op_Un ||
+            (n->type == NodeType::Leaf && (n->tok().type == TokenType::NUM_INT || n->tok().type == TokenType::NUM_FLOAT)) || 
+            (n->type == NodeType::Leaf && n->tok().type == TokenType::WORD);
+    }
+
+    int parse_int(std::string_view str) {
+        int result;
+        auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result);
+        ex_assert(ptr == str.data() + str.size());
+        ex_assert(ec != std::errc::invalid_argument && ec != std::errc::result_out_of_range);
+        return result;
+    }
+
+    void interpret(Node *n, bool *err) override {
+        if (n->type == NodeType::Leaf && n->tok().type == TokenType::NUM_INT) {
+            const auto &parsedInt = parse_int(n->tok().text);
+            if (*err) return;
+            ctx.add_i(InstrType::MOV, ctx.type("int", false)->type_size(), Lit{ .val = parsedInt }, outReg);
+            outType = ctx.type("int", false);
+            return;
+        }
+        if (n->type == NodeType::Op_Bin && n->child(1)->tok().type == TokenType::PLUS) {
+            RvalueInterpreter lhs(ctx, Reg::REG_0);
+            lhs.interpret(n->child(0), err);
+            if (*err) return;
+            StackLoc lhsLoc = ctx.stack_alloc(lhs.outType->type_size());
+            ctx.add_i(InstrType::MOV, lhs.outType->type_size(), Reg::REG_0, lhsLoc);
+
+            RvalueInterpreter rhs(ctx, Reg::REG_0);
+            rhs.interpret(n->child(2), err);
+            if (*err) return;
+
+            ex_assert(lhs.outType == rhs.outType);
+
+            ctx.add_i(InstrType::ADD, lhs.outType->type_size(), lhsLoc, Reg::REG_0);
+            outType = lhs.outType;
+            return;
+        }
+        if (n->type == NodeType::Leaf && n->tok().type == TokenType::WORD) {
+            VarLoc l = ctx_get_var(ctx, n->tok().text, err);
+            if (*err) {
+                return;
+            }
+            ctx.add_i(InstrType::MOV, l.decl.varType->type_size(), l.stackLoc, outReg);
+            outType = l.decl.varType;
+        }
+
+    }
 };
 
 class StatementExprInterpreter: public Interpreter {
@@ -233,10 +299,43 @@ public:
     bool can_handle(Node *n) override {
         return n->type == NodeType::Statement;
     }
-    void interpret(Node *n, bool *err) override {
 
+    void interpret(Node *n, bool *err) override {
+        if (n->child(0)->type == NodeType::VarDeclWithAssign) {
+
+            Node* expr = n->child(0); 
+            Node* nodeDecl = expr->child(0);
+            Node* nodeRv = expr->child(2);
+
+            ex_assert(nodeDecl->type == NodeType::VarDecl);
+
+            VarDeclInterpreter declInterp(ctx);
+            declInterp.interpret(nodeDecl, err);
+            if (*err) {
+                return;
+            }
+            RvalueInterpreter rvInterp(ctx, Reg::REG_0);
+            rvInterp.interpret(nodeRv, err);
+            if (*err) {
+                return;
+            }
+            ex_assert(rvInterp.outType == declInterp.varDecl.varType);
+
+            VarLoc varLoc = {
+                .decl = declInterp.varDecl, 
+                .stackLoc = ctx.stack_alloc(declInterp.varDecl.varType->type_size()), 
+                .indirect = false,
+            };
+            ctx.add_i(InstrType::MOV, varLoc.decl.varType->type_size(), Reg::REG_0, varLoc.stackLoc);
+            ctx_set_var(ctx, varLoc, err);
+
+            return;
+        }
+
+        ex_assert(false && "TODO");
     }
 };
+
 
 class ForExprInterpreter: public Interpreter {
 public:
@@ -248,6 +347,7 @@ public:
     }
 
     void interpret(Node *n, bool *err) override {
+        ex_assert(false && "NOT IMPLEMENTED");
     }
 };
 
@@ -262,26 +362,9 @@ public:
     }
 
     void interpret(Node *n, bool *err) override {
-        
+        ex_assert(false && "NOT IMPLEMENTED");
     }
 };
-
-
-class WhileExprInterpreter: public Interpreter {
-public:
-    Context &ctx;
-    WhileExprInterpreter(Context &ctx): ctx{ctx}{}
-
-    bool can_handle(Node *n) override {
-        return n->type == NodeType::WhileStatement;
-    }
-
-    void interpret(Node *n, bool *err) override {
-        
-    }
-};
-
-
 
 class IfExprInterpreter: public Interpreter {
 public:
@@ -293,25 +376,33 @@ public:
     }
 
     void interpret(Node *n, bool *err) override {
+        ex_assert(false && "NOT IMPLEMENTED");
     }
 };
 
 void BodyInterpreter::interpret(Node *bodyNode, bool *err) {
     IfExprInterpreter ifE(ctx);
-    WhileExprInterpreter forE(ctx);
+    WhileExprInterpreter whileE(ctx);
     ForExprInterpreter forE(ctx);
     StatementExprInterpreter statementE(ctx);
 
     std::initializer_list<Interpreter*> interpreters = { &ifE, &forE, &statementE};
 
     for (auto &child: bodyNode->children) {
+        bool didHandle = false;
         for (auto &interp: interpreters) {
             if (interp->can_handle(child)) {
+                didHandle = true;
                 interp->interpret(child, err);
                 if (*err)
                     return;
                 break;
             }
+        }
+
+        if (!didHandle) {
+            std::fprintf(stderr, "Couldn't handle node of type %.*s", static_cast<int>(to_string(child->type).size()), to_string(child->type).data());
+            ex_assert(false);
         }
     }
 }
@@ -328,12 +419,12 @@ public:
     }
 
     bool is_fun_with_body(Node *n) {
-        assert(n->type == NodeType::FunDecl);
+        ex_assert(n->type == NodeType::FunDecl);
         return n->child(3)->type != NodeType::Leaf || n->child(3)->tok().type != TokenType::SEMICOLON;
     }
 
     void interpret(Node *n, bool* err) override {
-        assert(n->type == NodeType::FunDecl);
+        ex_assert(n->type == NodeType::FunDecl);
 
         ctx.set_cursor(n->get_first_cursor());
 
@@ -368,8 +459,8 @@ public:
             ctx.add_i(Instr{
                 .tp = InstrType::FUN,
                 .arg1 = {.tp = InstrArgType::MARK, .data = { .mark = { .m = t.funName } }},
-                .arg2 = NanInstrArgType,
-                .arg3 = NanInstrArgType,
+                .arg2 = NanInstrarg,
+                .arg3 = NanInstrarg,
                 .size = -1,
             });
 
@@ -390,7 +481,8 @@ public:
                 ctx.add_param_i(ParamIndex{.p = paramIndex++}, varLoc.stackLoc);
             }
 
-            auto bodyNode = n->child(3);
+            auto bodyNode = n->child(4);
+            ex_assert(bodyNode->type == NodeType::Any);
             BodyInterpreter t(ctx);
             t.interpret(bodyNode, err);
 
@@ -402,9 +494,27 @@ public:
         }
     }
 
-
 };
 
+
+class BaseInterpreter: public Interpreter {
+public:
+    Context &ctx;
+
+    BaseInterpreter(Context &ctx) : ctx(ctx){}
+
+    bool can_handle(Node *n) override { return true; } 
+
+    void interpret(Node *n, bool *err) override {
+        for (const auto &c: n->children) {
+            FunInterpreter t(ctx);
+            t.interpret(c, err);
+            if (*err) {
+                break;
+            }
+        }
+    }
+};
 
 
 #endif

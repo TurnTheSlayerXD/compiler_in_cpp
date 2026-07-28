@@ -16,7 +16,7 @@ const Expr* init_parsing_expr(Parser& p) {
 
     (void) unOp;
 
-    auto binSigns = p.or_(AND, OR, GR, LE, GR_E, LE_E, EQ, PLUS, MINUS, MUL, DIV);
+    auto binSigns = p.or_(AND, OR, GR, LE, GR_E, LE_E, EQ, PLUS, MINUS, MUL, DIV, PERCENT);
 
     auto binOp = p.seq(
         NodeType::Op_Bin,

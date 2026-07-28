@@ -13,25 +13,27 @@
 #include <tree_preprocessing.h>
 
 #include <code_builder.h> 
+#include <to_asm.h>
+#include <instr_to_str.h>
 
 const char *line = "\n____________________________________________________________\n";
 
 
-int main() {
+int __main() {
     // const char *prog = "int* x = 1;";
     const char *prog = 
     "void printf(const char *fmt);"
     "int main(int argc, char** argv) { "
     "   int i = 0;"
-    "   while(i < argc) {"
-    "      if(i % 2 == 0) { "
-    "          printf(\"even\"); "
-    "      }"
-    "      else { "
-    "          printf(\"odd\")"
-    "      } "
-    "      i = i + 1;"
-    "   }"
+    // "   while(i < argc) {"
+    // "      if(i % 2 == 0) { "
+    // "          printf(\"odd\"); "
+    // "      }"
+    // "      else { "
+    // "          printf(\"even\");"
+    // "      } "
+    // "      i = i + 1;"
+    // "   }"
     "}";
 
     // const char *prog = "fu[0]((0), (1) )()()[0];";
@@ -48,11 +50,13 @@ int main() {
     }
     tokenizer.reset_pos(TokPos{.index = 0});
 
-    std::printf("Tokens%s", line);
-    for (auto t : tokenizer._tokens) {
-        std::cout << t << std::endl;
+    if (0) {
+        std::printf("Tokens%s", line);
+        for (auto t : tokenizer._tokens) {
+            std::cout << t << std::endl;
+        }
+        std::printf("%sEnd Tokens%s", line, line);
     }
-    std::printf("%sEnd Tokens%s", line, line);
 
     Parser p;
     Node *root = p.eval(tokenizer);
@@ -76,11 +80,44 @@ int main() {
 // Processing tree
     preprocess_tree(&root);
 
-    std::ofstream os("./__tree_ast.txt", std::ios::out);
-    auto res = root->get_str_repr({.indentStep = 4, .newLine="\n"});
-    os << res << std::endl;
+    std::ofstream osTreeAst("./__tree_ast.txt", std::ios::out);
+    auto strTreeRepr = root->get_str_repr({.indentStep = 4, .newLine="\n"});
+    osTreeAst << strTreeRepr << std::endl;
 
-    std::cout << res << std::endl;
+    // std::cout << res << std::endl;
+
+    Context ctx;
+
+    BaseInterpreter interp(ctx);
+    bool err = false;
+    interp.interpret(root, &err);
+
+    ex_assert(!err);
+
+    auto instrStrRepr = ctx_instr_to_string(ctx);
+
+    std::ofstream osInstr("./__instr.txt", std::ios::out);
+
+    // std::cout << "Result instructions" << "\n" << instrStrRepr << std::endl;
+
+
+    osInstr << instrStrRepr << std::endl;
+    
+    std::string asmText = AsmConverter(ctx).to_asm();
+
+    std::ofstream osAsm("./__asm.txt", std::ios::out);
+    osAsm << asmText << std::endl;
 
     return 0;
+}
+
+
+int main() {
+
+    try {
+        __main();
+    }
+    catch(const std::exception& e) {
+        std::cout << e.what();
+    }
 }

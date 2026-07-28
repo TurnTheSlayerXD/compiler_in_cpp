@@ -11,7 +11,7 @@
             "program": "gdb_out.exe",
             "args": [],
             "cwd": "${workspaceRoot}",
-            "preLaunchTask": "build"
+            "preLaunchTask": "debug_build"
         }
     ]
 }

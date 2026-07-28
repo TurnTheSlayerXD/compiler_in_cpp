@@ -4,3 +4,7 @@
 *.ilk
 *.txt
 .DS_Store
+.vscode/
+cpp/.vscode/
+c/.vscode/
+cpp/gdb_out.exe.dSYM/
