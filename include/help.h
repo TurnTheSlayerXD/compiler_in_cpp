@@ -4,6 +4,8 @@
 
 #include <memory>
 
+#define SV_ARG(sv) static_cast<int>((sv).size()), (sv).data()
+
 template <class T>
 struct Destruct {
     T _cbk;

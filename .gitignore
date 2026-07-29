@@ -8,3 +8,6 @@
 cpp/.vscode/
 c/.vscode/
 cpp/gdb_out.exe.dSYM/
+*.dSYM
+*.s
+*.asm

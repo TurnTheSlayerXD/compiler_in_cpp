@@ -22,18 +22,18 @@ const char *line = "\n__________________________________________________________
 int __main() {
     // const char *prog = "int* x = 1;";
     const char *prog = 
-    "void printf(const char *fmt);"
+    "int printf(const char *fmt);"
     "int main(int argc, char** argv) { "
     "   int i = 0;"
-    // "   while(i < argc) {"
-    // "      if(i % 2 == 0) { "
-    // "          printf(\"odd\"); "
-    // "      }"
-    // "      else { "
-    // "          printf(\"even\");"
-    // "      } "
-    // "      i = i + 1;"
-    // "   }"
+    "   while(i < argc) {"
+    "      if(i % 2 == 0) { "
+    "          printf(\"odd\"); "
+    "      }"
+    "      else { "
+    "          printf(\"even\");"
+    "      } "
+    "      i = i + 1;"
+    "   }"
     "}";
 
     // const char *prog = "fu[0]((0), (1) )()()[0];";
@@ -113,11 +113,11 @@ int __main() {
 
 
 int main() {
-
     try {
         __main();
     }
-    catch(const std::exception& e) {
-        std::cout << e.what();
+    catch(const std::exception &e){
+        std::cerr << e.what() << std::endl;
+        throw e;
     }
 }

@@ -79,7 +79,7 @@ public:
                     tp = ctx.ptr_type(tp, isConstPtr);
                 }
                 else {
-                    ex_assert(false && "TODO: Other Typespecs");
+                    ex_assert(false, "TODO: Other Typespecs");
                 }
 
                 ++index;
@@ -222,7 +222,7 @@ public:
 
     bool can_handle(Node *n) override {
         (void) n;
-        ex_assert(false && "SHOULD NOT BE CALLED");
+        ex_assert(false, "SHOULD NOT BE CALLED");
         return false;
     }
 
@@ -305,7 +305,7 @@ public:
 
             Node* expr = n->child(0); 
             Node* nodeDecl = expr->child(0);
-            Node* nodeRv = expr->child(2);
+            Node* nodeRv = expr->child(1);
 
             ex_assert(nodeDecl->type == NodeType::VarDecl);
 
@@ -332,7 +332,7 @@ public:
             return;
         }
 
-        ex_assert(false && "TODO");
+        ex_assert(false, "TODO");
     }
 };
 
@@ -347,10 +347,14 @@ public:
     }
 
     void interpret(Node *n, bool *err) override {
-        ex_assert(false && "NOT IMPLEMENTED");
+        ex_assert(false, "NOT IMPLEMENTED");
     }
 };
 
+bool can_cast_to_bool(UsedType* tp) {
+    assert(tp && "NULLPTR");
+    return false;
+}
 
 class WhileExprInterpreter: public Interpreter {
 public:
@@ -361,8 +365,17 @@ public:
         return n->type == NodeType::WhileStatement;
     }
 
+
     void interpret(Node *n, bool *err) override {
-        ex_assert(false && "NOT IMPLEMENTED");
+        Mark condMark = ctx.add_mark();
+
+        RvalueInterpreter rvInterp(ctx, Reg::REG_0);
+        assert(rvInterp.can_handle(n->child(0)));
+        rvInterp.interpret(n->child(0));
+
+        ctx.add_i(InstrType::CMP, Reg::REG_0, Lit{.val = 1});
+        ctx.add_i(Instr{.tp = JMP, })
+        Mark endMark = ctx.add_mark();
     }
 };
 
@@ -376,7 +389,7 @@ public:
     }
 
     void interpret(Node *n, bool *err) override {
-        ex_assert(false && "NOT IMPLEMENTED");
+        ex_assert(false, "NOT IMPLEMENTED");
     }
 };
 
@@ -386,7 +399,7 @@ void BodyInterpreter::interpret(Node *bodyNode, bool *err) {
     ForExprInterpreter forE(ctx);
     StatementExprInterpreter statementE(ctx);
 
-    std::initializer_list<Interpreter*> interpreters = { &ifE, &forE, &statementE};
+    std::initializer_list<Interpreter*> interpreters = { &ifE, &forE, &whileE, &statementE};
 
     for (auto &child: bodyNode->children) {
         bool didHandle = false;
@@ -401,7 +414,7 @@ void BodyInterpreter::interpret(Node *bodyNode, bool *err) {
         }
 
         if (!didHandle) {
-            std::fprintf(stderr, "Couldn't handle node of type %.*s", static_cast<int>(to_string(child->type).size()), to_string(child->type).data());
+            std::fprintf(stderr, "Couldn't handle node of type %.*s", SV_ARG(to_string(child->type)));
             ex_assert(false);
         }
     }
@@ -420,7 +433,7 @@ public:
 
     bool is_fun_with_body(Node *n) {
         ex_assert(n->type == NodeType::FunDecl);
-        return n->child(3)->type != NodeType::Leaf || n->child(3)->tok().type != TokenType::SEMICOLON;
+        return n->children.size() > 3;
     }
 
     void interpret(Node *n, bool* err) override {
@@ -481,8 +494,8 @@ public:
                 ctx.add_param_i(ParamIndex{.p = paramIndex++}, varLoc.stackLoc);
             }
 
-            auto bodyNode = n->child(4);
-            ex_assert(bodyNode->type == NodeType::Any);
+            auto bodyNode = n->child(3);
+            ex_assert(bodyNode && bodyNode->type == NodeType::Any);
             BodyInterpreter t(ctx);
             t.interpret(bodyNode, err);
 

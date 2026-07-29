@@ -188,12 +188,53 @@ void remove_empty_Any_nodes(Node **root) {
             stack.push_back({.v = child, .p = cur.v});
         }
     }
-    
+}
+
+void remove_unnecesery_nodes(Node **root) {
+    assert(root && *root);
+    std::vector<Node*> stack = { *root };
+
+    auto should_remove = [](const Node* c) {
+        using enum TokenType;
+        return c->type == NodeType::Leaf && 
+        (
+            c->tok().type == ASSIGN ||
+            c->tok().type == L_CURL ||
+            c->tok().type == R_CURL ||
+            c->tok().type == L_SUBSCR ||
+            c->tok().type == R_SUBSCR ||
+            c->tok().type == L_BR ||
+            c->tok().type == R_BR ||
+            c->tok().type == SEMICOLON ||
+            c->tok().type == KWD_IF ||
+            c->tok().type == KWD_ELSE ||
+            c->tok().type == KWD_WHILE ||
+            c->tok().type == KWD_FOR
+        );
+    };
+
+    while (!stack.empty()) {
+        Node* n = stack.back();
+        stack.pop_back();
+        if (n->type != NodeType::Leaf) {
+            for (size_t i = 0; i < n->children.size(); ++i) {
+                const auto &c = n->children[i];
+                if (should_remove(c)) {
+                    n->children.erase(n->children.begin()+i,n->children.begin()+i+1);
+                    --i;
+                }
+                else if (c->type != NodeType::Leaf){
+                    stack.push_back(c);
+                }
+            }
+        }
+    }
 }
 
 void preprocess_tree(Node **root) {
     remove_Plug_nodes(root);
     remove_empty_Any_nodes(root);
+    remove_unnecesery_nodes(root);
     sort_Op_Bin_nodes(root);
 }
 

@@ -355,7 +355,7 @@ VarLoc ctx_get_var(Context &ctx, std::string_view varName, bool *err) {
     auto it = std::find_if(curScope->vars.begin(), curScope->vars.end(), [&varName](const auto &d){ return varName == d.decl.varName; });
     if (it == curScope->vars.end()) {
         *err = true;
-        ex_assert(false && "DEBUG");
+        ex_assert(false, "DEBUG");
         return {};
     }
 

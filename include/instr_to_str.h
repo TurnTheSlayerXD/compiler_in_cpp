@@ -68,7 +68,7 @@ case FUN :
 case MARK :
 
     return std::string("MARK") + " " + to_string(i.arg1);
-default: ex_assert(false && "UNREACHABLE"); return "";
+default: ex_assert(false, "UNREACHABLE"); return "";
 
     }
 }

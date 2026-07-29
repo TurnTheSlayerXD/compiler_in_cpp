@@ -2,7 +2,6 @@
 #ifndef TO_ASM
 #define TO_ASM
 
-#define SV_ARG(sv) (sv).size(), (sv).data()
 
 #include <utility>
 
