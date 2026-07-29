@@ -367,15 +367,16 @@ public:
 
 
     void interpret(Node *n, bool *err) override {
-        Mark condMark = ctx.add_mark();
+        // Mark condMark = ctx.add_mark();
 
-        RvalueInterpreter rvInterp(ctx, Reg::REG_0);
-        assert(rvInterp.can_handle(n->child(0)));
-        rvInterp.interpret(n->child(0));
+        // RvalueInterpreter rvInterp(ctx, Reg::REG_0);
+        // assert(rvInterp.can_handle(n->child(0)));
+        // rvInterp.interpret(n->child(0), err);
+        // if ()
 
-        ctx.add_i(InstrType::CMP, Reg::REG_0, Lit{.val = 1});
-        ctx.add_i(Instr{.tp = JMP, })
-        Mark endMark = ctx.add_mark();
+        // ctx.add_i(InstrType::CMP, Reg::REG_0, Lit{.val = 1});
+        // ctx.add_i(Instr{.tp = JMP, })
+        // Mark endMark = ctx.add_mark();
     }
 };
 

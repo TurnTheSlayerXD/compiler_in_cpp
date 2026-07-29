@@ -186,13 +186,15 @@ struct Token {
     size_t           tokIndex;
 };
 
-// template <>
-// struct std::formatter<Token>: std::formatter<std::string> {
-//   auto format(Token t, format_context& ctx) const {
-//     return formatter<string>::format(
-//       std::format("Token {}, str=`{}`", t.type, t.text), ctx);
-//   }
-// };
+#if 0
+template <>
+struct std::formatter<Token>: std::formatter<std::string> {
+  auto format(Token t, format_context& ctx) const {
+    return formatter<string>::format(
+      std::format("Token {}, str=`{}`", t.type, t.text), ctx);
+  }
+};
+#endif
 
 std::ostream& operator<<(std::ostream& str, Token t) {
     str << "Token " << t.type << "," << " " << "`" << t.text << "`";

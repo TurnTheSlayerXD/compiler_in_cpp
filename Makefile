@@ -28,12 +28,12 @@ $(OUT_GDB): $(SRC) $(INCLUDE)
 gdb: $(OUT_GDB)
 
 test.asm: ./test.c
-	clang -o test.asm -S test.c
+	$(CC) -o test.asm -S test.c
 
 to_asm: test.asm
 
 exe_from_asm:
-	clang -o test.exe ./test.asm
+	$(CC) -o test.exe ./test.asm
 
 prepr: 
 	$(CC) -o main.txt -E $(FLAGS) -I./include $(SRC)
