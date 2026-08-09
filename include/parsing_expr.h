@@ -57,11 +57,13 @@ const Expr* init_parsing_expr(Parser& p) {
     auto expr = p.or_(assign, rvalue, lvalue
         )->set_name("expr");
 
-    auto typespecStar = p.any(p.seq(NodeType::TypespecStar, MUL, p.opt(KWD_CONST)));
+    auto constOpt = p.any(KWD_CONST)->set_name("opt kwd const");
+
+    auto typespecStar = p.any(p.seq(NodeType::TypespecStar, MUL, constOpt));
 
     auto typespecSubscr = p.any(p.seq(NodeType::TypespecSubscr, L_SUBSCR, p.opt(NUM_INT), R_SUBSCR));
-    
-    auto typeinfer = p.seq(NodeType::TypeUse, p.opt(KWD_CONST)->set_name("opt kwd const"), p.typeuse(), p.opt(typespecStar))->set_name("typeinfer");
+        
+    auto typeinfer = p.seq(NodeType::TypeUse, constOpt, p.typeuse(), constOpt, p.opt(typespecStar))->set_name("typeinfer");
 
     auto varDecl = p.seq(NodeType::VarDecl, typeinfer, WORD, p.opt(typespecSubscr))->set_name("var_decl");
     
@@ -87,12 +89,9 @@ const Expr* init_parsing_expr(Parser& p) {
 
     auto singleStatement = p.or_(semiStatement, forStatement, whileStatement, ifStatement)->set_name("single_statement");
 
-    auto statementAny = p.any(singleStatement
-        )->set_name("statement_any");
+    auto statementAny = p.any(singleStatement)->set_name("statement_any");
 
-    auto funDeclParams = p.opt(
-        p.seq(NodeType::FunDeclParams, p.or_(varDecl, typeinfer), p.any(p.seq(NodeType::Op_Comma, COMMA, p.or_(varDecl, typeinfer))))
-    );
+    auto funDeclParams = p.seq(NodeType::FunDeclParams, p.or_(varDecl, typeinfer, p.seq(NodeType::Vararg_Dots, THREE_DOTS)), p.any(p.seq(NodeType::Op_Comma, COMMA, p.or_(varDecl, typeinfer))),  p.opt(p.seq(NodeType::Vararg_Dots, COMMA, THREE_DOTS)));
 
     auto funDeclBraces = p.seq(NodeType::Op_Call_Brace, 
         L_BR, p.opt(funDeclParams), R_BR
@@ -103,15 +102,6 @@ const Expr* init_parsing_expr(Parser& p) {
     auto funDeclWithBody = p.seq(NodeType::FunDecl, typeinfer, WORD, funDeclBraces, L_CURL, statementAny, R_CURL)->set_name("fun_decl_with_body");
 
     auto _final = p.one_or_more(p.or_(funDecl, funDeclWithBody, singleStatement)->set_name("or_fun_or_funbody_or_singlestatement"))->set_name("_final");
-//______cycle check______
-    bool isCycled = p.detect_cycles(_final);
-    
-    if (isCycled) {
-        std::cout << "________________________________________" << std::endl;
-        std::cout << "WARNING: DETECTED CYCLES IN NODE PROVIDED" << std::endl;
-        std::cout << "________________________________________" << std::endl;
-        return nullptr;
-    }
 
     return _final;
 }

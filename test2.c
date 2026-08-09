@@ -1,0 +1,1 @@
+(fuu( fuu(amogus), 2, 3) * (yasos + 1)(69)) + ((bibu)() + 1 * 2);

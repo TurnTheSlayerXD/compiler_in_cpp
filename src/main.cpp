@@ -9,35 +9,12 @@
 
 #include <tokenizer.h>
 #include <help.h>
-
 #include <tree_preprocessing.h>
-
-#include <code_builder.h> 
-#include <to_asm.h>
-#include <instr_to_str.h>
 
 const char *line = "\n____________________________________________________________\n";
 
 
-int __main() {
-    // const char *prog = "int* x = 1;";
-    const char *prog = 
-    "int printf(const char *fmt);"
-    "int main(int argc, char** argv) { "
-    "   int i = 0;"
-    "   while(i < argc) {"
-    "      if(i % 2 == 0) { "
-    "          printf(\"odd\"); "
-    "      }"
-    "      else { "
-    "          printf(\"even\");"
-    "      } "
-    "      i = i + 1;"
-    "   }"
-    "}";
-
-    // const char *prog = "fu[0]((0), (1) )()()[0];";
-
+int __main(std::string_view prog) {
     Tokenizer tokenizer(prog);
     while (!tokenizer.eof()) {
         tokenizer.next_token();
@@ -50,7 +27,7 @@ int __main() {
     }
     tokenizer.reset_pos(TokPos{.index = 0});
 
-    if (0) {
+    if (1) {
         std::printf("Tokens%s", line);
         for (auto t : tokenizer._tokens) {
             std::cout << t << std::endl;
@@ -59,7 +36,9 @@ int __main() {
     }
 
     Parser p;
-    Node *root = p.eval(tokenizer);
+
+    CExpr* mainExpr = init_parsing_expr(p);
+    Node *root = p.eval(tokenizer, mainExpr);
 
     if (!tokenizer.eof()) {
         std::cerr << "____________________________________________________________" << std::endl;
@@ -79,45 +58,42 @@ int __main() {
 
 // Processing tree
     preprocess_tree(&root);
-
-    std::ofstream osTreeAst("./__tree_ast.txt", std::ios::out);
     auto strTreeRepr = root->get_str_repr({.indentStep = 4, .newLine="\n"});
-    osTreeAst << strTreeRepr << std::endl;
-
-    // std::cout << res << std::endl;
-
-    Context ctx;
-
-    BaseInterpreter interp(ctx);
-    bool err = false;
-    interp.interpret(root, &err);
-
-    ex_assert(!err);
-
-    auto instrStrRepr = ctx_instr_to_string(ctx);
-
-    std::ofstream osInstr("./__instr.txt", std::ios::out);
-
-    // std::cout << "Result instructions" << "\n" << instrStrRepr << std::endl;
-
-
-    osInstr << instrStrRepr << std::endl;
-    
-    std::string asmText = AsmConverter(ctx).to_asm();
-
-    std::ofstream osAsm("./__asm.txt", std::ios::out);
-    osAsm << asmText << std::endl;
-
+    std::cout << strTreeRepr;
     return 0;
 }
 
 
-int main() {
-    try {
-        __main();
+int main(int argc, const char** argv) {
+    if (argc > 1 && std::string_view(argv[1]) == std::string_view("--example")) {
+        std::string_view prog = 
+        "int printf(const char **fmt);"
+        "void main(int argc, const char** argv) { "
+        "   const int var = 1;"
+        "   while(i < argc) {"
+        "      if(i % 2 == 0) { "
+        "          printf(\"odd\"); "
+        "      }"
+        "      else { "
+        "          printf(\"even\");"
+        "      } "
+        "      i = i + 1;"
+        "   }"
+        "}";
+        return __main(prog);
+    }  
+    else if (argc > 1) {
+        std::ifstream str(argv[1]);
+        str.seekg(0, std::ios_base::end);
+        auto size = str.tellg();
+        str.seekg(0, std::ios_base::beg);
+        std::unique_ptr<char[]> buf(new char[size]);
+        str.read(buf.get(), size);
+        return __main(std::string_view(buf.get(), size));
     }
-    catch(const std::exception &e){
-        std::cerr << e.what() << std::endl;
-        throw e;
+    else {
+        std::string input{std::istreambuf_iterator<char>(std::cin),std::istreambuf_iterator<char>()};
+        return __main(input.c_str());
     }
+
 }

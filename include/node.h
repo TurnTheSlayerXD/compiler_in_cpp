@@ -53,6 +53,9 @@ enum class NodeType {
 
     FunDeclParams,
     Call_Args,
+
+    Vararg_Dots,
+
 };
 std::string_view to_string(NodeType tp) {
     using enum NodeType;
@@ -102,6 +105,8 @@ std::string_view to_string(NodeType tp) {
 
         case FunDeclParams : return "Fun decl params";
         case Call_Args: return "Call fun args";
+
+        case Vararg_Dots: return "Vararg Dots";
 
         default: assert(false && "Unexpected"); return "";
     }
@@ -181,7 +186,7 @@ public:
     std::string get_str_repr(NodePrintOpts opts = { .indentStep = 4, .newLine = "\n\r" }) {
         _PO = opts;
         std::string buf;
-        _print(0, this, buf);
+        _print(0, this, buf, false);
         return buf;
     }
 
@@ -208,21 +213,29 @@ public:
         }
     }
 
-    static void _print(size_t indent, Node *v, std::string &buf) {
+    static void _print(size_t indent, Node *v, std::string &buf, bool withComma) {
         set_indent(indent, buf);
         buf += v->to_string();
         if (v->children.size() > 0) {
             buf += std::string_view(": {");
             buf += _PO.newLine;
-            for (auto child: v->children) {
-                _print(indent + _PO.indentStep, child, buf);
+            for (size_t i = 0; i < v->children.size()-1; ++i) {
+                _print(indent + _PO.indentStep, v->children[i], buf, true);
             }
+            _print(indent + _PO.indentStep, v->children[v->children.size()-1], buf, false);
             set_indent(indent, buf);
-            buf += std::string_view("},");
+            if (withComma) {
+                buf += "},";
+            }
+            else {
+                buf += "}";
+            }
             buf += _PO.newLine;
         }
         else {
-            buf += std::string_view(",");
+            if (withComma) {
+                buf += std::string_view(",");
+            }
             buf += _PO.newLine; 
         }
     }

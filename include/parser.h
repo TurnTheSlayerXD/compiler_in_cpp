@@ -148,7 +148,7 @@ public:
     bool __can_reach(CExpr *v, std::vector<std::string_view> &path);
 
 
-    Node* eval(Tokenizer &t);
+    Node* eval(Tokenizer &t, CExpr *expr);
 };
 
 void NamedStorage::set_name(CExpr* expr, std::string_view name) {
@@ -714,7 +714,7 @@ bool Parser::detect_cycles(CExpr* e) {
                     std::cout << p << ", ";
                 }
                 std::cout << "\n___________________________________________\n";
-                // return true;
+                return true;
             }
         }
         {
@@ -727,7 +727,7 @@ bool Parser::detect_cycles(CExpr* e) {
                     std::cout << p << ", ";
                 }
                 std::cout << "\n___________________________________________\n";
-                // return true;
+                return true;
             }
         }
     }
@@ -764,7 +764,7 @@ bool Parser::__can_reach(const CExpr *v, std::vector<std::string_view> &path) {
     }
     {
         const Seq* ptr = dynamic_cast<const Seq*>(v); 
-        if (ptr){
+        if (ptr && ptr->size() == 1){
             bool can = __can_reach(ptr->at(0), path);
             if (can) {
                 path.push_back(_namedStorage.try_find_name(ptr));
@@ -788,8 +788,16 @@ bool Parser::__can_reach(const CExpr *v, std::vector<std::string_view> &path) {
     return false;
 }
 
-Node* Parser::eval(Tokenizer &t) {
-    CExpr *expr = init_parsing_expr(*this);
+Node* Parser::eval(Tokenizer &t, CExpr *expr) {
+//______cycle check______
+    bool isCycled = Parser::detect_cycles(expr);
+    if (isCycled) {
+        std::cout << "________________________________________" << std::endl;
+        std::cout << "WARNING: DETECTED CYCLES IN NODE PROVIDED" << std::endl;
+        std::cout << "________________________________________" << std::endl;
+        throw std::runtime_error("Invalid expression structure provided");
+    }
+//______cycle check______
     _nodeRoot = expr->eval(t);
     return _nodeRoot;
 }

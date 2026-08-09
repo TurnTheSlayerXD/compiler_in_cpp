@@ -1,44 +1,26 @@
 CC=clang++
 FLAGS=-std=c++20 -Wall -Wextra -Wpedantic
-SRC=main.cpp
-OUT=out.exe
+OUT=ast_builder.exe
 OUT_GDB=gdb_out.exe
 
-INCLUDE=\
+SRC=\
+./src/main.cpp\
 ./include/tokenizer.h\
 ./include/node.h\
 ./include/parser.h\
 ./include/help.h\
 ./include/parsing_expr.h\
-./include/tree_preprocessing.h\
-./include/code_builder.h\
-./include/context.h\
-./include/instructions.h\
-./include/to_asm.h\
-./include/instr_to_str.h
+./include/tree_preprocessing.h
 
-$(OUT): $(SRC) $(INCLUDE)
-	$(CC) -o $(OUT) $(FLAGS) -I./include -O2 $(SRC)
+$(OUT): $(SRC)
+	$(CC) -o $(OUT) $(FLAGS) -I./include -O2 ./src/main.cpp
 
 all: $(OUT)
 
-$(OUT_GDB): $(SRC) $(INCLUDE)
-	$(CC) -o $(OUT_GDB) $(FLAGS) -ggdb -I./include $(SRC)
+$(OUT_GDB): $(SRC)
+	$(CC) -o $(OUT_GDB) $(FLAGS) -ggdb -I./include ./src/main.cpp
 
 gdb: $(OUT_GDB)
-
-linux_to_asm: test.c
-	clang -o linux_test.asm -S -target x86_64-pc-linux-gnu test.c
-
-win_to_asm: test.asm
-	clang -o win_test.asm -S -target x86_64-pc-windows-msvc test.c
-
-
-exe_from_asm:
-	$(CC) -o test.exe ./test.asm
-
-prepr: 
-	$(CC) -o main.txt -E $(FLAGS) -I./include $(SRC)
 
 
 build_tok_test:

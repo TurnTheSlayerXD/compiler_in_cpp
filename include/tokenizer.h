@@ -96,6 +96,7 @@ enum class TokenType {
     KWD_ELSE,
     KWD_SWITCH,
     KWD_CASE,
+    THREE_DOTS
 };
 
 constexpr auto MACRO_SEP_COUNT = std::size({
@@ -149,7 +150,7 @@ std::string_view to_string(TokenType t) {
         case SEMICOLON : return "`;`";
         case L_CURL: return "`{`";
         case R_CURL: return "`}`";
-
+        case THREE_DOTS: return "...";
         default: { fprintf(stderr, "\nTo_string not implemented for: [%d]\n", static_cast<int>(t)); assert(false && "UNREACHABLE"); return "";}
     }
 }
@@ -196,18 +197,18 @@ struct std::formatter<Token>: std::formatter<std::string> {
 };
 #endif
 
-std::ostream& operator<<(std::ostream& str, Token t) {
+std::ostream& operator<<(std::ostream& str, const Token& t) {
     str << "Token " << t.type << "," << " " << "`" << t.text << "`";
     return str;
 }
 
 
-std::string_view slice(std::string_view s, size_t l, size_t r) {
+std::string_view slice(const std::string_view& s, size_t l, size_t r) {
     assert(l <= r && "slice: l > r");
     return s.substr(l, r - l);
 }
 
-bool starts_with(std::string_view text, std::string_view pat) {
+bool starts_with(const std::string_view& text, const std::string_view& pat) {
     if (pat.size() > text.size()) {
         return false;
     }
@@ -237,6 +238,9 @@ class Tokenizer {
         SINGLE_QUOTE,
         DOUBLE_QUOTE,
         INVALID,
+        TWO_DOTS,
+
+        COMMENT,
     };
 
 public:
@@ -397,6 +401,7 @@ public:
         case State::START:
             if (reached_end()) {}
             else if (cur_char() == '.') _state = State::DOT;
+            else if (is_cur_matches("//")) _state = State::COMMENT;
             else if (cur_char() == '\'') _state = State::SINGLE_QUOTE;
             else if (cur_char() == '"') _state = State::DOUBLE_QUOTE;
             else if (is_word_char(cur_char())) _state = State::WORD;
@@ -462,12 +467,17 @@ public:
             else if (isdigit(cur_char())) {}
             else _state = State::INVALID;
             break;
-
+        case State::TWO_DOTS:
+            if (reached_end()) _state = State::INVALID;
+            else if (cur_char() == '.') add_token_and_reset(TokenType::THREE_DOTS, _startCur, slice_self(_startCur.pos, _cur.pos+1));
+            else _state = State::INVALID;
+            break;
         case State::DOT: 
             if (reached_end()) {
                 add_token_and_reset(TokenType::DOT, _startCur, slice_self(_startCur.pos, _cur.pos));
                 return 0;
             }
+            else if (cur_char() == '.') _state = State::TWO_DOTS;
             else if (isdigit(cur_char())) _state = State::FLOAT;
             else {
                 add_token_and_reset(TokenType::DOT, _startCur, slice_self(_startCur.pos, _cur.pos));
@@ -482,6 +492,13 @@ public:
                 _startCur = _cur;
             }
             break;
+        case State::COMMENT:
+            if (reached_end()) {}
+            else if (cur_char() == '\n') {
+                _state = State::START;
+                trim_left();
+                _startCur = _cur;
+            }
         case State::INVALID: 
             break;
         }
@@ -503,19 +520,19 @@ public:
             size_t timesToIter = manage_state();
             if (_state == State::INVALID) {
                 _errBit = true;
-                _errMsg = "Invalid Tokenizer state";
+                _errMsg = str_fmt("Invalid state at pos %s", to_string(_cur).c_str());
                 return {};
             }
             if (reached_end() && _state != State::START) {
                 _errBit = true;
-                _errMsg = "next_token: Reached end of source while in MIDDLE state";
+                _errMsg = str_fmt("Invalid state at pos %s", to_string(_cur).c_str());
                 return {};
             }
             for (size_t i = 0; i < timesToIter && !reached_end(); ++i) {
                 iter();
             }
             if (_tokens.size() > prevTokensCount) {
-                assert(_state != State::START && "Unreachable");
+                // assert(_state != State::START && "Unreachable");
                 return _tokens.back();
             }
         }
