@@ -489,7 +489,6 @@ public:
         return 1;
     }
 
-
     Token next_token() {
         if (_tokIndex < _tokens.size()) {
             _tokIndex += 1;
@@ -501,35 +500,26 @@ public:
 
         for (;;) {
             size_t prevTokensCount = _tokens.size();
-
             size_t timesToIter = manage_state();
-
             if (_state == State::INVALID) {
                 _errBit = true;
                 _errMsg = "Invalid Tokenizer state";
                 return {};
             }
-
             if (reached_end() && _state != State::START) {
                 _errBit = true;
                 _errMsg = "next_token: Reached end of source while in MIDDLE state";
                 return {};
             }
-            
             for (size_t i = 0; i < timesToIter && !reached_end(); ++i) {
                 iter();
             }
-            
             if (_tokens.size() > prevTokensCount) {
-                if (_state != State::START) {
-                    assert(false && "Unreachable");
-                }
+                assert(_state != State::START && "Unreachable");
                 return _tokens.back();
             }
         }
     }
-
-    
 };
 
 #endif

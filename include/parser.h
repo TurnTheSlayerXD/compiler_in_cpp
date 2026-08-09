@@ -736,13 +736,13 @@ bool Parser::detect_cycles(CExpr* e) {
 }
 
 bool Parser::__can_reach(const CExpr *v, std::vector<std::string_view> &path) {
-    // {
-    //     const Opt* ptr = dynamic_cast<const Opt*>(v); 
-    //     if (ptr) {
-    //         path.push_back(_namedStorage.try_find_name(v));
-    //         return true;
-    //     }
-    // }
+    {
+        const Opt* ptr = dynamic_cast<const Opt*>(v); 
+        if (ptr) {
+            path.push_back(_namedStorage.try_find_name(v));
+            return true;
+        }
+    }
     {
         const Any* ptr = dynamic_cast<const Any*>(v); 
         if (ptr) {

@@ -27,10 +27,12 @@ $(OUT_GDB): $(SRC) $(INCLUDE)
 
 gdb: $(OUT_GDB)
 
-test.asm: ./test.c
-	$(CC) -o test.asm -S test.c
+linux_to_asm: test.c
+	clang -o linux_test.asm -S -target x86_64-pc-linux-gnu test.c
 
-to_asm: test.asm
+win_to_asm: test.asm
+	clang -o win_test.asm -S -target x86_64-pc-windows-msvc test.c
+
 
 exe_from_asm:
 	$(CC) -o test.exe ./test.asm
