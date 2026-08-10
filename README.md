@@ -1,4 +1,4 @@
-Simple LR-analyzer
+Simple Recursive-Descent Parser
 Langauge Rules are located in ./include/parsing_expr.h
 
 Build with:
