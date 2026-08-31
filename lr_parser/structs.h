@@ -19,7 +19,8 @@ enum class SymType {
     X(NUM, "n")\
     X(_EOF, "eof")\
     X(L_BR, "(")\
-    X(R_BR, ")")
+    X(R_BR, ")")\
+    X(EPS, "eps")
     #define X(name, _) name,
     TERM_SYMS
     #undef X
@@ -43,16 +44,23 @@ struct First {
     std::vector<SymType> terms;
 };
 
+struct ItemSet;
+
 struct Item {
     const Rule* rule;
     size_t dot_pos;
     SymType lookahead;
+    ItemSet* trans_set;
+    bool is_kernel;
 
-    bool operator==(const Item&rhs) const {
+    bool operator==(const Item &rhs) const {
         return rule == rhs.rule && dot_pos == rhs.dot_pos && lookahead == rhs.lookahead;
     }
 
-    bool is_finished() const {
+    bool is_shift() const {
+        return dot_pos < rule->body.size();
+    }
+    bool is_reduce() const {
         return dot_pos >= rule->body.size();
     }
 
@@ -60,18 +68,37 @@ struct Item {
         assert(dot_pos < rule->body.size());
         return rule->body[dot_pos];
     }
+
 };
 
 struct ItemSet {
+    size_t state_num;
+    ItemSet *from_set;
     std::vector<Item> items;
+    bool is_complete;
 
     void add(const Item &item) {
         if (!rng::contains(items, item)) {
             items.push_back(item);
         }
     }
+    
+    SymType goto_sym() {
+        auto first_kern_it = rng::find_if(items, [](const auto &i) { return i.is_kernel; });
+        assert(first_kern_it != items.end());
+        SymType sym = (*first_kern_it).rule->body[(*first_kern_it).dot_pos-1];
+        for (const auto &i: items) {
+            if (i.is_kernel) {
+                assert(i.rule->body[i.dot_pos-1] == sym);
+            }
+        }
+        return sym;
+    }
 
     bool operator==(const ItemSet& rhs) const {
+        if (items.size() != rhs.items.size()) {
+            return false;
+        }
         for (const auto& item: items) {
             if (!rng::contains(rhs.items, item)) {
                 return false;
@@ -83,7 +110,7 @@ struct ItemSet {
 
 using FollowSet = std::unordered_map<SymType, std::unordered_set<SymType>>;
 
-bool is_terminal(const SymType& sym) {
+bool is_term(const SymType& sym) {
     using enum SymType;
     switch(sym) {
     #define X(name, _) case name:
@@ -176,17 +203,18 @@ std::string to_string(const Item& item) {
         rule_with_dot += std::format(" {}", to_string(item.rule->body[i]));
     }
 
-    if (item.is_finished()) {
+    if (item.dot_pos >= item.rule->body.size()) {
         rule_with_dot += " .";
     }
 
-    return std::format("Item [ {} ]  look_d=[ {} ]  dot_pos=[ {} ]", rule_with_dot, to_string(item.lookahead), item.dot_pos);
+    return std::format("Item [ {} ]  look_d=[ {} ] {}", rule_with_dot, to_string(item.lookahead), item.is_kernel ? "*" : "");
 }
 
 std::string to_string(const ItemSet &set) {
     std::string s;
+    size_t i = 1;
     for (const Item& item: set.items) {
-        s += std::format("{}\n", to_string(item));
+        s += std::format("{} {}\n", i++, to_string(item));
     }
     return s;
 }
@@ -226,7 +254,7 @@ std::string to_string(const auto &vec) {
 std::string to_string(ParserTable& tbl, const std::vector<SymType> &SYMS) {
 
     std::vector<SymType> sorted_syms(SYMS.begin(), SYMS.end());
-    rng::sort(sorted_syms, [](const auto &l, const auto &r) { return is_terminal(l) && !is_terminal(r); });
+    rng::sort(sorted_syms, [](const auto &l, const auto &r) { return is_term(l) && !is_term(r); });
 
     std::string out;
     out += "PARSER TABLE:\n";
@@ -240,14 +268,14 @@ std::string to_string(ParserTable& tbl, const std::vector<SymType> &SYMS) {
     for (size_t i = 0; i < st_count; ++i) {
         out += std::format("{:>3}", i);
         // static_assert(std::is_same_v<decltype(tbl.goto_tbl[i][SYMS[0]]), size_t>); 
-        if (is_terminal(sorted_syms[0])) {
+        if (is_term(sorted_syms[0])) {
             out += std::format("{:>7}", to_string(tbl.action_tbl[i][sorted_syms[0]]));
         }
         else {
             out += std::format("{:>7}", to_string(tbl.goto_tbl[i][sorted_syms[0]]));
         }
         for (size_t s = 1; s < sorted_syms.size(); ++s) {
-            if (is_terminal(sorted_syms[s])) {
+            if (is_term(sorted_syms[s])) {
                 out += std::format("{:>8}", to_string(tbl.action_tbl[i][sorted_syms[s]]));
             }
             else {
