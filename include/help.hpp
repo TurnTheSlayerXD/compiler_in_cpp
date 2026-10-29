@@ -40,4 +40,26 @@ void ex_assert(bool tp, const std::string descr="") {
     }
 }
 
+std::string_view slice(const std::string_view& s, size_t l, size_t r) {
+    assert(l <= r && "slice: l > r");
+    return s.substr(l, r - l);
+}
+
+std::string_view slice(const std::string_view& s, size_t l) {
+    return s.substr(l, s.size() - l);
+}
+
+
+bool starts_with(const std::string_view& text, const std::string_view& pat) {
+    if (pat.size() > text.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < pat.size(); ++i) {
+        if (text[i] != pat[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 #endif

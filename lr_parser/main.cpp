@@ -272,13 +272,11 @@ ParserTable build_table(const std::vector<SymType> &non_terms, const std::vector
             todo_list.pop_back();
             close_set(*set.get(), rules, first_set);
             bool is_discarded = false;
-            if (1) {
-                for (const auto& g_set: done_list) {
-                    if (can_be_merged(*set, *g_set)) {
-                        merge_item_sets(*g_set, *set);
-                        is_discarded = true;
-                        break;
-                    }
+            for (const auto& g_set: done_list) {
+                if (can_be_merged(*set, *g_set)) {
+                    merge_item_sets(*g_set, *set);
+                    is_discarded = true;
+                    break;
                 }
             }
             if (!is_discarded) {
@@ -396,7 +394,6 @@ ParserTable build_table(const std::vector<SymType> &non_terms, const std::vector
                         .type = ActionType::GOTO,
                         ._ = { .goto_ = i.trans_set->state_num },
                     };
-                    // i_cache[set->state_num][i.cur_sym()] = goto_row[i.cur_sym()];
                 }
             }
         }
@@ -421,25 +418,20 @@ ParserTable build_table(const std::vector<SymType> &non_terms, const std::vector
 struct Node {
     SymType sym;
     std::vector<std::shared_ptr<Node>> children;
-    
 };
+
+std::string to_string(const Node& n) {
+    return to_string(n.sym);
+}
+std::string to_string(const std::shared_ptr<Node>& n) {
+    return to_string(n->sym);
+}
+
 
 struct StackItem {
     size_t state;
     std::shared_ptr<Node> node;
 };
-
-
-void print_tree(const std::shared_ptr<Node> &v) {
-    if (v == nullptr) {
-        return;
-    }
-
-    std::println("{}", to_string(v->sym));
-    for (const auto &c: v->children) {
-        print_tree(c);
-    }
-}
 
 std::shared_ptr<Node> parse_statement(const std::vector<SymType> &text, const ParserTable &tbl) {
     assert(rng::all_of(text, [](const auto &t) { return is_term(t); }));
@@ -537,6 +529,50 @@ std::shared_ptr<Node> parse_statement(const std::vector<SymType> &text, const Pa
     return nullptr;
 }
 
+struct NodePrintOpts {
+    size_t ind_step = 4;
+    std::string_view new_l = "\n\r";
+};
+
+void _print(size_t indent, const std::shared_ptr<Node> &v, std::string &buf, bool withComma, const NodePrintOpts &opts) {
+    auto set_indent = [&buf] (size_t indent) {
+        for (size_t i = 0; i < indent; ++i) {
+            buf += ' ';
+        }
+    };
+
+    set_indent(indent);
+    buf += std::format("\"{}\"", to_string(v));
+    if (v->children.size() > 0) {
+        buf += std::string_view(": {");
+        buf += opts.new_l;
+        for (size_t i = 0; i < v->children.size()-1; ++i) {
+            _print(indent + opts.ind_step, v->children[i], buf, true, opts);
+        }
+        _print(indent + opts.ind_step, v->children[v->children.size()-1], buf, false, opts);
+        set_indent(indent);
+        if (withComma) {
+            buf += "},";
+        }
+        else {
+            buf += "}";
+        }
+        buf += opts.new_l;
+    }
+    else {
+        if (withComma) {
+            buf += std::string_view(",");
+        }
+        buf += opts.new_l; 
+    }
+}
+
+std::string to_json_like(const std::shared_ptr<Node> &root, NodePrintOpts opts = { .ind_step = 4, .new_l = "\n\r" }) {
+    std::string buf;
+    _print(0, root, buf, false, opts);
+    return buf;
+}
+
 int main() {
     using enum SymType;
 
@@ -545,6 +581,7 @@ int main() {
         { .head = EXPR,    .body = { EPS }},
         { .head = EXPR,    .body = { OPERAND }},
         { .head = OPERAND, .body = { L_BR, OPERAND, R_BR }},
+        { .head = OPERAND, .body = { PLUS, NUM }},
         { .head = OPERAND, .body = { NUM }},
         { .head = OPERAND, .body = { OPERAND, PLUS, OPERAND }},
     };
@@ -560,8 +597,9 @@ int main() {
         return 69;
     }
 
-    print_tree(out_node);
+    auto json = to_json_like(out_node);
 
+    std::print("{}", json);
 
     return 0;
 }
